@@ -4,6 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS raw_readings_t
 (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
@@ -12,7 +13,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     magnitude           REAL    NOT NULL,
     ambient_temperature REAL    NOT NULL,
     sky_temperature     REAL    NOT NULL,
-    signal_strength     INTEGER NOT NULL,
+    signal_strength     INTEGER         ,
     azimuth             REAL,
     altitude            REAL,
     longitude           REAL,
@@ -20,8 +21,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     height              REAL,
     --- Here start mnagamenet fields
     retained            INTEGER DEFAULT 0,
-    duplicated          INTEGER DEFAULT 0,
-    PRIMARY KEY (date_id, time_id, tess)
+    duplicated          INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS stats_t

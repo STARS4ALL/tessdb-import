@@ -86,20 +86,27 @@ def result_generator(cursor, arraysize=500):
 def csv_generator(filepath):
     '''An iterator that reads csv line by line and keeps memory usage down'''
     with open(filepath, "r") as csvfile:
-        datareader = csv.reader(csvfile)
+        datareader = csv.reader(csvfile,delimiter=';')
         dummy = next(datareader)  # drops the header row
+        counter = 0
         for srcrow in datareader:
             row = []
-            tstamp = s4a.datetime.from_iso8601(srcrow[0])
-            dateid, timeid = s4a.dbase_ids()
+            counter += 1
+            dateid, timeid = s4a.datetime.from_iso8601(srcrow[0]).dbase_ids()
+            row.append(counter)
             row.append(dateid)
             row.append(timeid)
-            row.append(srcrow[1])
+            row.append(srcrow[1])         # name
             row.append(int(srcrow[2]))    # sequence number
             row.append(float(srcrow[3]))  # frequency
-            row.append(float(srcrow[4]))  # tamb
-            row.append(float(srcrow[5]))  # tsky
-            row.append(int(srcrow[6]))    # RSS  
+            row.append(float(srcrow[4]))  # magnitude
+            row.append(float(srcrow[5]))  # tamb
+            row.append(float(srcrow[6]))  # tsky
+            try:
+                val = int(srcrow[7])
+            except Exception as e:
+                val = None
+            row.append(val)    # RSS  
             yield row
 
 
@@ -142,13 +149,16 @@ def create_datamodel(options, conn1):
     conn1.executescript(script)
 
 def slurp(conn, iterable):
-    for x in iterable:
-        print(x)
-    return
-    conn.executemany(
+    cursor = conn.cursor()
+    try:
+        cursor.executemany(
         '''
-        INSERT INTO 
+        INSERT OR IGNORE INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength) 
+        VALUES (?, ?,?,?,?,?,?,?,?,?)
         ''', iterable)
+    except Exception as e:
+        print(e)
+    conn.commit()
 
 
 
@@ -164,8 +174,7 @@ def main():
         conn1.load_extension("/usr/local/lib/libsqlitefunctions.so")
         conn2 = open_database(options.dbase)
         create_datamodel(options, conn1)
-        for row in csv_generator("/home/rafa/repos/tessdb-import/pruebas/dump_mongodb.csv"):
-            print(row)
+        slurp(conn1, csv_generator("/home/rafa/repos/tessdb-import/pruebas/dump_mongodb.csv"))
 
 
 
