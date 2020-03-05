@@ -20,27 +20,23 @@ import os.path
 import sys
 import argparse
 import sqlite3
-import os
-import os.path
-import datetime
 import logging
+import csv
+
 
 # Access  template withing the package
 from pkg_resources import resource_filename
 
 
-# Python3 catch
-try:
-    raw_input
-except:
-    raw_input = input 
+import upm.s4a as s4a
+from . import __version__
 
 # ----------------
 # Module constants
 # ----------------
 
-DEFAULT_DBASE = "~/tess.db"
-EXTRA_DBASE   = "~/extra.db"
+DEFAULT_DBASE = "/var/dbase/tess.db"
+EXTRA_DBASE   = "/var/dbase/extra.db"
 OUTPUT_FILE   = "~/output.sql"
 
 
@@ -48,8 +44,8 @@ TSTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 
 # Default dates whend adjusting in a rwnge of dates
-DEFAULT_START_DATE = datetime.datetime(year=2000,month=1,day=1)
-DEFAULT_END_DATE   = datetime.datetime(year=2999,month=12,day=31)
+DEFAULT_START_DATE = s4a.datetime(year=2000,month=1,day=1)
+DEFAULT_END_DATE   = s4a.datetime(year=2999,month=12,day=31)
 
 # -----------------------
 # Module global variables
@@ -65,17 +61,17 @@ def utf8(s):
 
 def mkdate(datestr):
     try:
-        date = datetime.datetime.strptime(datestr, '%Y-%m-%d').replace(hour=12)
+        date = upm.s4a.datetime.strptime(datestr, '%Y-%m-%d').replace(hour=12)
     except ValueError:
-        date = datetime.datetime.strptime(datestr, '%Y-%m-%dT%H:%M:%S')
+        date = s4a.datetime.strptime(datestr, '%Y-%m-%dT%H:%M:%S')
     return date
 
 
 def now_month():
-    return datetime.datetime.utcnow().replace(day=1,hour=0,minute=0,second=0,microsecond=0)
+    return s4a.datetime.utcnow().replace(day=1,hour=0,minute=0,second=0,microsecond=0)
 
 def mkmonth(datestr):
-    return datetime.datetime.strptime(datestr, MONTH_FORMAT)
+    return s4a.datetime.strptime(datestr, MONTH_FORMAT)
 
 def result_generator(cursor, arraysize=500):
     'An iterator that uses fetchmany to keep memory usage down'
@@ -86,20 +82,47 @@ def result_generator(cursor, arraysize=500):
         for result in results:
             yield result
 
-def createMonthList(options):
-    if options.latest_month:
-        start_month  = now_month()
-        end_month   = start_month
-    elif options.previous_month:
-        start_month  = now_month() + relativedelta(months = -1)
-        end_month    = start_month
-    elif options.for_month:
-        start_month = options.for_month
-        end_month   = start_month
-    else:
-        start_month  = options.from_month
-        end_month    = now_month()
-    return MonthIterator(start_month, end_month)
+
+def csv_generator(filepath):
+    '''An iterator that reads csv line by line and keeps memory usage down'''
+    with open(filepath, "r") as csvfile:
+        datareader = csv.reader(csvfile)
+        dummy = next(datareader)  # drops the header row
+        for srcrow in datareader:
+            row = []
+            tstamp = s4a.datetime.from_iso8601(srcrow[0])
+            dateid, timeid = s4a.dbase_ids()
+            row.append(dateid)
+            row.append(timeid)
+            row.append(srcrow[1])
+            row.append(int(srcrow[2]))    # sequence number
+            row.append(float(srcrow[3]))  # frequency
+            row.append(float(srcrow[4]))  # tamb
+            row.append(float(srcrow[5]))  # tsky
+            row.append(int(srcrow[6]))    # RSS  
+            yield row
+
+
+
+def open_database(dbase_path):
+    if not os.path.exists(dbase_path):
+       raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
+    logging.info("Opening database {0}".format(dbase_path))
+    return sqlite3.connect(dbase_path)
+
+
+def createParser():
+    # create the top-level parser
+    name = os.path.split(os.path.dirname(sys.argv[0]))[-1]
+    parser    = argparse.ArgumentParser(prog=name, description="tessdb command line tool")
+    parser.add_argument('--version', action='version', version='{0} {1}'.format(name, __version__))
+    parser.add_argument('-d', '--dbase', default=DEFAULT_DBASE, help='SQLite database full file path')
+    parser.add_argument('-x', '--extra-dbase', default=EXTRA_DBASE, help='SQLite extra database full file path')
+    group1 = parser.add_mutually_exclusive_group()
+    group1.add_argument('-v', '--verbose', action='store_true', help='Verbose output.')
+    group1.add_argument('-q', '--quiet',   action='store_true', help='Quiet output.')
+    return parser
+
 
 def configureLogging(options):
     if options.verbose:
@@ -110,36 +133,24 @@ def configureLogging(options):
         level = logging.INFO
     logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=level)
 
-def open_database(dbase_path):
-    if not os.path.exists(dbase_path):
-       raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
-    logging.info("Opening database {0}".format(dbase_path))
-    return sqlite3.connect(dbase_path)
+def create_datamodel(options, conn1):
+    datamodel_path = resource_filename(__name__, 'sql/extra.sql')
+    with open(datamodel_path) as f: 
+        lines = f.readlines() 
+    script = ''.join(lines)
+    logging.info("Creating data model from {0}".format(datamodel_path))
+    conn1.executescript(script)
+
+def slurp(conn, iterable):
+    for x in iterable:
+        print(x)
+    return
+    conn.executemany(
+        '''
+        INSERT INTO 
+        ''', iterable)
 
 
-def render(template_path, context):
-    if not os.path.exists(template_path):
-        raise IOError("No Jinja2 template file found at {0}. Exiting ...".format(template_path))
-    path, filename = os.path.split(template_path)
-    return jinja2.Environment(
-        loader=jinja2.FileSystemLoader(path or './')
-    ).get_template(filename).render(context)
-
-def pep():
-    template_path = resource_filename(__name__, 'templates/SQL-template.j2')
-
-def createParser():
-    # create the top-level parser
-    name = os.path.split(os.path.dirname(sys.argv[0]))[-1]
-    parser    = argparse.ArgumentParser(prog=name, description="tessdb command line tool")
-    parser.add_argument('--version', action='version', version='{0} {1}'.format(name, __version__))
-    parser.add_argument('-d', '--dbase', default=DEFAULT_DBASE, help='SQLite database full file path')
-    parser.add_argument('-x', '--extra-database',  default=DEFAULT_DBASE, help='SQLite database full file path')
-    parser.add_argument('-o', '-output-file',  default=DEFAULT_FILE, help='Default output file')
-    group1 = parser.add_mutually_exclusive_group()
-    group1.add_argument('-v', '--verbose',  action='store_true', help='verbose output')
-    group1.add_argument('-q', '--quiet',    action='store_true', help='quiet output')
-    return parser
 
 def main():
     '''
@@ -149,8 +160,15 @@ def main():
         options = createParser().parse_args(sys.argv[1:])
         configureLogging(options)
         conn1 = open_database(options.extra_dbase)
+        conn1.enable_load_extension(True)
+        conn1.load_extension("/usr/local/lib/libsqlitefunctions.so")
         conn2 = open_database(options.dbase)
-        
+        create_datamodel(options, conn1)
+        for row in csv_generator("/home/rafa/repos/tessdb-import/pruebas/dump_mongodb.csv"):
+            print(row)
+
+
+
     except KeyboardInterrupt:
         print('')
     #except Exception as e:

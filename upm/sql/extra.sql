@@ -1,7 +1,11 @@
+-------------------------------
+-- Auxiliar database DATA Model
+-------------------------------
+
 CREATE TABLE IF NOT EXISTS raw_readings_t
 (
-    date_id             INTEGER NOT NULL REFERENCES date_t(date_id), 
-    time_id             INTEGER NOT NULL REFERENCES time_t(time_id), 
+    date_id             INTEGER NOT NULL, 
+    time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
     sequence_number     INTEGER NOT NULL,
     frequency           REAL    NOT NULL,
