@@ -99,8 +99,10 @@ def createParser():
     #   tdbtool input slurp
     #
     subparser = parser_input.add_subparsers(dest='subcommand')
-    inp = subparser.add_parser('slurp', help='ingest input file')
-    inp.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    isl = subparser.add_parser('slurp', help='ingest input file')
+    isl.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+
+    ist = subparser.add_parser('stats', help='calculate Tx period stats')
 
     return parser
 
@@ -153,7 +155,7 @@ def main():
     except KeyboardInterrupt as e:
         logging.error("[{0}] Interrupted by user ".format(__name__))
     except Exception as e:
-        logging.error("[{0}] Error => {1}".format(__name__, utf8(str(e)) ))
+        logging.error("[{0}] Fatal error => {1}".format(__name__, utf8(str(e)) ))
     finally:
         pass
 

@@ -20,10 +20,24 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     latitude            REAL,
     height              REAL,
     --- Here start mnagamenet fields
+    seconds             INTEGER NOT NULL,
     retained            INTEGER DEFAULT 0,
     duplicated          INTEGER DEFAULT 0,
     PRIMARY KEY(date_id, time_id, tess)
 );
+
+CREATE TABLE IF NOT EXISTS first_differences_t
+(
+    tess                TEXT    NOT NULL,
+    date_id             INTEGER NOT NULL,
+    time_id             INTEGER NOT NULL, -- final point of the difference
+    id                  INTEGER NOT NULL, -- final point of the difference
+    seq_diff            INTEGER NOT NULL,
+    seconds_diff        INTEGER NOT NULL,
+    period              REAL    NOT NULL,
+    PRIMARY KEY(date_id, time_id, tess)
+);
+
 
 CREATE TABLE IF NOT EXISTS stats_t
 (

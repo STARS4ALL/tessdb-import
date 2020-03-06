@@ -31,7 +31,7 @@ from pkg_resources import resource_filename
 # Local imports
 # -------------
 
-import tdbtool.s4a as s4a
+import tdbtool.s4a
 from .      import __version__
 from .utils import paging
 
@@ -48,6 +48,15 @@ from .utils import paging
 # --------------
 # Module classes
 # --------------
+class datetime(tdbtool.s4a.datetime):
+
+    def dbase_ids(self):
+        '''
+        Return date and time database identifiers + seconds within the day
+        '''
+        return 10000*self.year + 100*self.month + self.day, 100000*self.hour + 100*self.minute + self.second, 3600*self.hour + 60*self.minute + self.second
+
+
 
 class Counter(object):
     '''A counter to inject in database'''
@@ -112,7 +121,7 @@ def csv_generator(filepath, factory):
         dummy = next(datareader)  # drops the header row
         for srcrow in datareader:
             row = []
-            dateid, timeid = s4a.datetime.from_iso8601(srcrow[0]).dbase_ids()
+            dateid, timeid, seconds = datetime.from_iso8601(srcrow[0]).dbase_ids()
             counter = factory.build(srcrow[1])
             row.append(counter.current())
             row.append(dateid)
@@ -123,6 +132,7 @@ def csv_generator(filepath, factory):
             row.append(float(srcrow[4]))  # magnitude
             row.append(float(srcrow[5]))  # tamb
             row.append(float(srcrow[6]))  # tsky
+            row.append(seconds)           # number of seconds within the day
             try:
                 val = int(srcrow[7])
             except Exception as e:
@@ -132,18 +142,48 @@ def csv_generator(filepath, factory):
             yield row
 
 
+def by_name_and_day(connection):
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT  tess, date_id
+        FROM    raw_readings_t
+        GROUP BY tess, date_id
+        ORDER BY tess ASC, date_id ASC
+        ''')
+    return cursor   # return Cursor as an iterator
+
+def kk(connection, iterable):
+    for item in iterable:
+        row = {'name': item[0], 'date_id': item[1]}
+        logging.info("[{0}] Calculating first differences for {1} on {2}".format(__name__, item[0], item[1]))
+        cursor = connection.cursor()
+        cursor.execute(
+            '''
+            INSERT INTO first_differences_t
+            SELECT src.tess, src.date_id, dst.id, (dst.seconds - src.seconds), (dst.sequence_number - src.sequence_number), CAST((dst.seconds - src.seconds) AS FLOAT) / (dst.sequence_number - src.sequence_number)
+            FROM raw_readings_t AS src
+            CROSS JOIN raw_readings_t AS dst
+            WHERE src.tess == dst.tess
+            AND   dst.id == src.id - 1
+            AND   src.tess = "stars84"
+            AND   src.date_id == 20190824;
+            ''')
+        connection.commit()
+
+
 
 def input_slurp(connection, options):
+    logging.info("[{0}] Starting ingestion from {1}".format(__name__, options.csv_file))
     duplicates = {}
     cursor = connection.cursor()
     factory = CounterFactory(connection)
-    logging.info("[{0}] Starting ingestion from {1}".format(__name__, options.csv_file))
     for row in csv_generator(options.csv_file, factory):
         try:
             cursor.execute(
             '''
-            INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength) 
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength, seconds) 
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
             ''', row)
         except sqlite3.IntegrityError as e:
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
@@ -153,6 +193,14 @@ def input_slurp(connection, options):
     connection.commit()
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
     #paging(cursor,["TESS","MAC","Site"])
+
+
+def input_stats(connection, options):
+    cursor = connection.cursor()
+    logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
+    kk(connection, by_name_and_day(connection))
+
+   
 
 
 
