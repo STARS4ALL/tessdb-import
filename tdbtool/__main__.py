@@ -32,6 +32,7 @@ from .input import *
 
 DEFAULT_DBASE = "/var/dbase/tess.db"
 EXTRA_DBASE   = "/var/dbase/extra.db"
+DEFAULT_SQLITE_MODULE = "/usr/local/lib/libsqlitefunctions.so"
 
 # -----------------------
 # Module global variables
@@ -97,10 +98,9 @@ def createParser():
     # Choices:
     #   tdbtool input slurp
     #
-
     subparser = parser_input.add_subparsers(dest='subcommand')
     inp = subparser.add_parser('slurp', help='ingest input file')
-    inp.add_argument('--file', required=True, type=str, help='CSV file to ingest')
+    inp.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
 
     return parser
 
@@ -108,7 +108,7 @@ def createParser():
 def open_database(dbase_path):
     if not os.path.exists(dbase_path):
        raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
-    logging.info("Opening database {0}".format(dbase_path))
+    logging.info("[{0}] Opening database {1}".format(__name__, dbase_path))
     return sqlite3.connect(dbase_path)
 
 
@@ -127,7 +127,7 @@ def create_datamodel(connection, options):
     with open(datamodel_path) as f: 
         lines = f.readlines() 
     script = ''.join(lines)
-    logging.info("Creating data model from {0}".format(datamodel_path))
+    logging.info("[{0}] Creating data model from {1}".format(__name__,datamodel_path))
     connection.executescript(script)
 
 
@@ -140,10 +140,9 @@ def main():
     try:
         options = createParser().parse_args(sys.argv[1:])
         configureLogging(options)
-
         conn1 = open_database(options.extra_dbase)
         conn1.enable_load_extension(True)
-        conn1.load_extension("/usr/local/lib/libsqlitefunctions.so")
+        conn1.load_extension(DEFAULT_SQLITE_MODULE)
         conn2 = open_database(options.dbase)
         create_datamodel(conn1, options)
         command    = options.command
@@ -151,9 +150,9 @@ def main():
         # Call the function dynamically
         func = command + '_' + subcommand
         globals()[func](conn1, options)
-    except KeyboardInterrupt:
-        print('')
-    #except Exception as e:
+    except KeyboardInterrupt as e:
+        logging.error("[{0}] Interrupted by user ".format(__name__))
+    except Exception as e:
         logging.error("[{0}] Error => {1}".format(__name__, utf8(str(e)) ))
     finally:
         pass

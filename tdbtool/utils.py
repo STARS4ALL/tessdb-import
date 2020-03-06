@@ -13,6 +13,7 @@
 # -------------------
 
 import sqlite3
+import logging
 
 # Python3 catch
 try:
@@ -46,6 +47,10 @@ import tabulate
 # -----------------------
 # Module global functions
 # -----------------------
+
+# --------------
+# Module classes
+# --------------
 
 
 # ==============
