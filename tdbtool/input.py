@@ -160,8 +160,8 @@ def kk(connection, iterable):
         cursor = connection.cursor()
         cursor.execute(
             '''
-            INSERT INTO first_differences_t
-            SELECT src.tess, src.date_id, dst.id, (dst.seconds - src.seconds), (dst.sequence_number - src.sequence_number), CAST((dst.seconds - src.seconds) AS FLOAT) / (dst.sequence_number - src.sequence_number)
+            INSERT INTO first_differences_t()
+            SELECT dst.tess, dst.date_id, dst.time_id, dst.id, (dst.seconds - src.seconds), (dst.sequence_number - src.sequence_number), CAST((dst.seconds - src.seconds) AS FLOAT) / (dst.sequence_number - src.sequence_number)
             FROM raw_readings_t AS src
             CROSS JOIN raw_readings_t AS dst
             WHERE src.tess == dst.tess
