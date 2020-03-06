@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS raw_readings_t
 (
-    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    id                  INTEGER NOT NULL,
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     height              REAL,
     --- Here start mnagamenet fields
     retained            INTEGER DEFAULT 0,
-    duplicated          INTEGER DEFAULT 0
+    duplicated          INTEGER DEFAULT 0,
+    PRIMARY KEY(date_id, time_id, tess)
 );
 
 CREATE TABLE IF NOT EXISTS stats_t
