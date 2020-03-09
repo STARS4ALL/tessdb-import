@@ -33,7 +33,7 @@ from pkg_resources import resource_filename
 
 import tdbtool.s4a
 from .      import __version__
-from .utils import paging
+from .utils import paging, tuple_generator
 
 # ----------------
 # Module constants
@@ -152,14 +152,6 @@ class CounterFactory(object):
 # Module global functions
 # -----------------------
 
-
-def pairs_generator(iterable):
-    prev = None
-    for cur in iterable:
-        yield prev, cur
-        prev = cur
-
-
 def csv_generator(filepath, factory):
     '''An iterator that reads csv line by line and keeps memory usage down'''
     with open(filepath, "r") as csvfile:
@@ -167,30 +159,30 @@ def csv_generator(filepath, factory):
         dummy = next(datareader)  # drops the header row
         for srcrow in datareader:
             row = []
-            kk = datetime.from_iso8601(srcrow[0], TSTAMP_FORMAT)
+            dt = datetime.from_iso8601(srcrow[0], TSTAMP_FORMAT)
             #dateid, timeid, seconds = datetime.from_iso8601(srcrow[0],TSTAMP_FORMAT).to_dbase_ids()
-            dateid, timeid = kk.to_dbase_ids()
-            seconds = kk.to_seconds()
+            dateid, timeid = dt.to_dbase_ids()
+            seconds = dt.to_seconds()
             counter = factory.build(srcrow[1])
             row.append(counter.current())
             row.append(dateid)
             row.append(timeid)
-            row.append(srcrow[1])         # name
-            row.append(int(srcrow[2]))    # sequence number
-            row.append(float(srcrow[3]))  # frequency
-            row.append(float(srcrow[4]))  # magnitude
-            row.append(float(srcrow[5]))  # tamb
-            row.append(float(srcrow[6]))  # tsky
-            row.append(seconds)           # number of seconds within the day
+            row.append(srcrow[1])         # name = 3
+            row.append(int(srcrow[2]))    # sequence number = 4
+            row.append(float(srcrow[3]))  # frequency = 5
+            row.append(float(srcrow[4]))  # magnitude = 6
+            row.append(float(srcrow[5]))  # tamb = 7
+            row.append(float(srcrow[6]))  # tsky = 8
+            row.append(seconds)           # number of seconds within the day = 9
             try:
                 val = int(srcrow[7])
             except Exception as e:
                 val = None
-            row.append(val)    # RSS 
+            row.append(val)                # RSS  = 10
             yield row
 
 
-def by_name_and_day(connection):
+def name_and_date_iterable(connection):
     cursor = connection.cursor()
     cursor.execute(
         '''
@@ -199,73 +191,63 @@ def by_name_and_day(connection):
         GROUP BY tess, date_id
         ORDER BY tess ASC, date_id ASC
         ''')
-    return cursor   # return Cursor as an iterator
+    return cursor   # return Cursor as an iterable
 
-def kk(connection, iterable):
-    for item in iterable:
-        row = {'name': item[0], 'date_id': item[1]}
-        logging.info("[{0}] Calculating first differences for {1} on {2}".format(__name__, item[0], item[1]))
-        cursor = connection.cursor()
-        cursor.execute(
-            '''
-            INSERT INTO first_differences_t()
-            SELECT dst.tess, dst.date_id, dst.time_id, dst.id, (dst.seconds - src.seconds), (dst.sequence_number - src.sequence_number), CAST((dst.seconds - src.seconds) AS FLOAT) / (dst.sequence_number - src.sequence_number)
-            FROM raw_readings_t AS src
-            CROSS JOIN raw_readings_t AS dst
-            WHERE src.tess == dst.tess
-            AND   dst.id == src.id - 1
-            AND   src.tess = "stars84"
-            AND   src.date_id == 20190824;
-            ''')
-        connection.commit()
 
-def daily(connection, name, date_ide, n):
+def daily_iterable(connection, name, date_id):
     row = {'name': name, 'date_id': date_id}
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT tess, date_id, time_id, id
+        SELECT tess, date_id, seconds, sequence_number, id
         FROM  raw_readings_t
         WHERE tess = :name
         AND   date_id = :date_id
         ''', row)
-    return cursor
-
-def day_differences(connection, daily_iterable):
-    row = {}
-    for prev, cur in pairs_generator(daily_iterable):
-        row['deltaSeq'] = cur[0] - prev[0]
-        row['deltaT']   = cur[1] - prev[1]
-        row['period']   = float(row['deltaT'])/row['deltaSeq']
-        cursor = connection.cursor()
-        cursor.execute(
-            '''
-            INSERT INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period)
-            VALUES(
-                :name,
-                :date_id,
-                :time_id,
-                :id,
-                :deltaSeq,
-                :deltaT,
-                :period
-            )
-            ''', row)
-        connection.commit()
+    return cursor   # return Cursor as an iterable
 
 
-def load_max_date_id(connection, name, date_ide, n):
-    row = {'name': name, 'date_id': date_id}
+
+def write_daily_differences(connection, prev, cur, N):
+    row = {
+        'name'    : cur[0],
+        'date_id' : cur[1],
+        'time_id' : cur[2],
+        'id'      : cur[4],
+        'deltaSeq': cur[3] - prev[3],
+        'deltaT'  : cur[2] - prev[2],
+        'period'  : float(cur[2] - prev[2])/(cur[3] - prev[3]),
+        'N'       : N,
+    }
+    #logging.info("[{0}] {4}-1 Differences for {1}, {2}-{3} ".format(__name__, row['name'], row['date_id'], row['time_id'], row['N']))
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT tess, date_id, time_id, id
-        FROM  raw_readings_t
-        WHERE tess = :name
-        AND   date_id = :date_id
+        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
+         VALUES(
+            :name,
+            :date_id,
+            :time_id,
+            :id,
+            :deltaSeq,
+            :deltaT,
+            :period,
+            :N
+        )
         ''', row)
-    return cursor
+    connection.commit()
 
+
+def compute_stats(connection):
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        INSERT OR IGNORE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period)
+        SELECT tess, date_id, SUM(seconds_diff)/COUNT(*), MEDIAN(seconds_diff), STDEV(seconds_diff)
+        FROM  first_differences_t
+        GROUP BY tess, date_id
+        ''')
+    connection.commit()   # return Cursor as an iterable
 
 # ==============
 # MAIN FUNCTIONS
@@ -289,7 +271,7 @@ def input_slurp(connection, options):
                 counter.next()
                 cursor.execute(
                     '''
-                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength, seconds) 
+                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength) 
                     VALUES (?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
         except sqlite3.IntegrityError as e:
@@ -309,7 +291,29 @@ def input_slurp(connection, options):
 def input_stats(connection, options):
     cursor = connection.cursor()
     logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
-    kk(connection, by_name_and_day(connection))
+    for group in name_and_date_iterable(connection):
+        name    = group[0]
+        date_id = group[1]
+        N       = group[2]
+        LL      = N / 20
+        i       = 0
+        logging.info("[{0}] Computing diff for {1} and {2} ({3} points)".format(__name__, name, date_id, N))
+        for point in tuple_generator(daily_iterable(connection, name, date_id), 2):
+            if not all(point):
+                continue
+            else:
+                prev, cur = point
+                i = (i + 1) % LL
+                if i == 0:
+                    logging.info("[{0}] {1}: date = {2}, id = {3}".format(__name__, cur[0], cur[1], cur[4]))
+                write_daily_differences(connection, prev, cur, N)
+    compute_stats(connection)
+    logging.info("[{0}] Done!".format(__name__))
+
+                
+
+
+   
 
    
 

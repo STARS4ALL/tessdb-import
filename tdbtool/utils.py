@@ -13,7 +13,7 @@
 # -------------------
 
 import sys
-
+import collections
 
 # Python3 catch
 try:
@@ -73,6 +73,13 @@ def utf8(s):
     else:
         return (s)
 
+
+def tuple_generator(iterable, N):
+    '''Partitions a very long iterable in tuples of size N'''
+    q = collections.deque((None for x in range(0,N)), N)
+    for current in iterable:
+        q.append(current)
+        yield tuple(x for x in q)
 
 # ==============
 # DATABASE STUFF

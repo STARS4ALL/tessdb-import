@@ -45,14 +45,14 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     seq_diff            INTEGER NOT NULL,
     seconds_diff        INTEGER NOT NULL,
     period              REAL    NOT NULL,
-    N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
-    PRIMARY KEY(date_id, time_id, tess)
+    N                   INTEGER NOT NULL,  -- sample count DO WE NEED IT ???
+    PRIMARY KEY(tess, date_id, time_id)
 );
 
 
 CREATE TABLE IF NOT EXISTS stats_t
 (
-	date_id             INTEGER NOT NULL REFERENCES date_t(date_id), 
+	date_id             INTEGER NOT NULL, 
 	tess                TEXT    NOT NULL,
 	median_period       REAL,	-- median Tx period over a day
 	mean_period         REAL,   -- median Tx period over a day
