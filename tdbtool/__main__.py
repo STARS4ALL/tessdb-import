@@ -16,6 +16,7 @@ import sqlite3
 import os
 import os.path
 import datetime
+import traceback
 
 #--------------
 # other imports
@@ -23,6 +24,7 @@ import datetime
 
 from . import __version__
 
+from .utils import utf8
 from .input import *
 
 
@@ -156,6 +158,7 @@ def main():
         logging.error("[{0}] Interrupted by user ".format(__name__))
     except Exception as e:
         logging.error("[{0}] Fatal error => {1}".format(__name__, utf8(str(e)) ))
+        traceback.print_exc()
     finally:
         pass
 

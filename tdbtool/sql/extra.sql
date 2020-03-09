@@ -26,6 +26,16 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     PRIMARY KEY(date_id, time_id, tess)
 );
 
+-- This table helps save time when loading CSV files
+CREATE TABLE IF NOT EXISTS housekeeping_t
+(
+    tess                TEXT    ,
+    max_date_id         INTEGER , -- max date processed
+    max_id              INTEGER , -- max load counter id
+    PRIMARY KEY(tess)
+);
+
+
 CREATE TABLE IF NOT EXISTS first_differences_t
 (
     tess                TEXT    NOT NULL,
@@ -35,6 +45,7 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     seq_diff            INTEGER NOT NULL,
     seconds_diff        INTEGER NOT NULL,
     period              REAL    NOT NULL,
+    N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
     PRIMARY KEY(date_id, time_id, tess)
 );
 

@@ -12,8 +12,8 @@
 # System wide imports
 # -------------------
 
-import sqlite3
-import logging
+import sys
+
 
 # Python3 catch
 try:
@@ -31,6 +31,8 @@ import tabulate
 # local imports
 # -------------
 
+from .s4a import datetime
+
 # ----------------
 # Module constants
 # ----------------
@@ -44,13 +46,32 @@ import tabulate
 # Module global variables
 # -----------------------
 
-# -----------------------
-# Module global functions
-# -----------------------
 
 # --------------
 # Module classes
 # --------------
+
+
+# -----------------------
+# Module global functions
+# -----------------------
+
+
+def mkdate(datestr):
+    date = none
+    for fmt in ['%Y-%m','%Y-%m-%d','%Y-%m-%dT%H:%M:%S','%Y-%m-%dT%H:%M:%SZ']:
+        try:
+            date = datetime.strptime(datestr, fmt)
+        except ValueError:
+            pass
+    return date
+
+
+def utf8(s):
+    if sys.version_info[0] < 3:
+        return unicode(s, 'utf8')
+    else:
+        return (s)
 
 
 # ==============

@@ -63,26 +63,32 @@ class datetime(Datetime.datetime):
     '''
 
     @classmethod
-    def from_iso8601(cls, timestamp):
+    def from_iso8601(cls, timestamp, fmt=TSTAMP_FORMAT):
         '''
         Creates a datetime from an ISO8601 string of the format YYYY-MM-DDTHH:MM:SS
         '''
         try:
-            t = Datetime.datetime.strptime(timestamp, TSTAMP_FORMAT)
+            t = Datetime.datetime.strptime(timestamp, fmt)
         except Exception as e:
-            t = Datetime.datetime.strptime(timestamp, TSTAMP_FORMAT + 'Z')
+            return None
         return cls(t.year, t.month, t.day, t.hour, t.minute, t.second)
 
+    @classmethod
+    def from_dbase_ids(cls, date_id, time_id):
+        yyyy = int(str(date_id)[0:2])
+        mmmm = int(str(date_id)[2:4])
+        dd   = int(str(date_id)[4:6])
+        hh   = int(str(time_id)[0:2])
+        mm   = int(str(time_id)[2:4])
+        ss   = int(str(time_id)[4:6])
+        return cls(yyyy, mmmm, dd, hh, mm, ss)
 
-    def to_iso8601(self, zulu=False):
+
+    def to_iso8601(self, fmt=TSTAMP_FORMAT):
         '''
-        Produces an ISO 8601 string, YYYY-MM-DDTHH:MM:SS
+        Produces an ISO 8601 string, YYYY-MM-DDTHH:MM:SS by defaault
         '''
-        if zulu:
-            tformat = TSTAMP_FORMAT + 'Z'
-        else:
-            tformat =TSTAMP_FORMAT
-        return self.strftime(tformat)
+        return self.strftime(fmt)
 
 
     def round(self):
@@ -92,7 +98,7 @@ class datetime(Datetime.datetime):
         return (self + Datetime.timedelta(microseconds=500000)).replace(microsecond=0)
 
 
-    def dbase_ids(self):
+    def to_dbase_ids(self):
         '''
         Return date and time database identifiers
         '''
