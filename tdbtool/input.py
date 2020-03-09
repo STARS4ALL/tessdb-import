@@ -64,8 +64,9 @@ class datetime(tdbtool.s4a.datetime):
 class Counter(object):
     '''A counter to inject in database'''
 
-    def __init__(self, value):
+    def __init__(self, value, max_date_id):
         self._value = value
+        self._max_date_id = max_date_id
 
     def next(self):
         self._value += 1
@@ -77,6 +78,13 @@ class Counter(object):
 
     def current(self):
         return self._value
+
+    def update_date_id(self, date_id):
+        self._max_date_id = date_id if date_id > self._max_date_id else self._max_date_id
+
+    def date_id(self):
+        return self._max_date_id
+
 
 
 class CounterFactory(object):
@@ -93,36 +101,40 @@ class CounterFactory(object):
         try:
             cursor.execute(
                 '''
-                SELECT max_id FROM housekeeping_t
+                SELECT max_id, max_date_id FROM housekeeping_t
                 WHERE tess == :name
                 ''', row)
         except Exception as e:
             logging.info("[{0}] table does not exist".format(__name__))
-            print(e)
-            result = -1
+            row['max_id']      = 0
+            row['max_date_id'] = 0
         else:
             result = cursor.fetchone()
-        return result[0] if result is not None else -1
+            if result is not None:
+                row['max_id']      = result[0]
+                row['max_date_id'] = result[1]
+            else:
+                row['max_id']      = 0
+                row['max_date_id'] = 0
+            logging.info("[{0}] Loading Counters {1}".format(__name__, row))
+        return row['max_id'], row['max_date_id']
 
 
-    def saveMax(self, max_date_ids):
+    def saveMax(self):
         cursor = self._connection.cursor()
         for key in self._pool.keys():
             try:
                 row = {
                     'name': key, 
-                    'max_id': self._pool[key].current()-1, 
+                    'max_id': self._pool[key].current()-1,
+                    'max_date_id' : self._pool[key].date_id()   
                 }
-                if key in max_date_ids:
-                    row['max_date_id'] = max_date_ids[key]
-                else:
-                    cursor.execute("SELECT max_date_id FROM housekeeping_t WHERE tess == :name", row)
-                    row['max_date_id'] = cursor.fetchone()[0]
                 cursor.execute(
                     '''
                     INSERT OR REPLACE INTO housekeeping_t(tess, max_id, max_date_id) 
                     VALUES (:name, :max_id, :max_date_id)
                     ''', row)
+                logging.info("[{0}] Saving counters {1}".format(__name__, row))
             except Exception as e:
                 logging.error("[{0}] Error saving counters".format(__name__))
                 traceback.print_exc()
@@ -131,8 +143,8 @@ class CounterFactory(object):
 
     def build(self, name):
         if name not in self._pool.keys():
-            value = self.loadMax(name)
-            c = Counter(value+1)
+            value, max_date_id = self.loadMax(name)
+            c = Counter(value+1, max_date_id)
             self._pool[name] = c
         return self._pool[name]
 
@@ -174,8 +186,7 @@ def csv_generator(filepath, factory):
                 val = int(srcrow[7])
             except Exception as e:
                 val = None
-            row.append(val)    # RSS
-            counter.next()  
+            row.append(val)    # RSS 
             yield row
 
 
@@ -243,6 +254,19 @@ def day_differences(connection, daily_iterable):
         connection.commit()
 
 
+def load_max_date_id(connection, name, date_ide, n):
+    row = {'name': name, 'date_id': date_id}
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT tess, date_id, time_id, id
+        FROM  raw_readings_t
+        WHERE tess = :name
+        AND   date_id = :date_id
+        ''', row)
+    return cursor
+
+
 # ==============
 # MAIN FUNCTIONS
 # ==============
@@ -256,22 +280,27 @@ def input_slurp(connection, options):
     factory = CounterFactory(connection)
     for row in csv_generator(options.csv_file, factory):
         try:
-            cursor.execute(
-            '''
-            INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength, seconds) 
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
-            ''', row)
+            counter = factory.build(row[3])
+            max_date_id = counter.date_id()
+            if row[1] < max_date_id:
+                # Skip old data
+                continue
+            else:
+                counter.next()
+                cursor.execute(
+                    '''
+                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength, seconds) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    ''', row)
         except sqlite3.IntegrityError as e:
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
-            counter = factory.build(row[3])
-            c = counter.prev()
-            logging.debug("[{0}] Duplicated row, restoring counter for {1} to {2}".format(__name__, row[3], c))
+            oldv = counter.prev()
+            logging.debug("[{0}] Duplicated row, restoring counter for {1} to {2}".format(__name__, row[3], oldv))
         else:
-            temp = max_date_id.get(row[3],0)
-            max_date_id[row[3]] = row[1] if row[1] > temp else temp
+            counter.update_date_id(row[1])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
     logging.info("[{0}] Saving house keeping data".format(__name__))
-    factory.saveMax(max_date_id)
+    factory.saveMax()
     connection.commit()
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
     #paging(cursor,["TESS","MAC","Site"])
