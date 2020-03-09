@@ -199,55 +199,59 @@ def daily_iterable(connection, name, date_id):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT tess, date_id, seconds, sequence_number, id
-        FROM  raw_readings_t
-        WHERE tess = :name
-        AND   date_id = :date_id
+        SELECT time_id, seconds, sequence_number, id
+        FROM   raw_readings_t
+        WHERE  tess = :name
+        AND    date_id = :date_id
         ''', row)
     return cursor   # return Cursor as an iterable
 
 
 
-def write_daily_differences(connection, prev, cur, N):
-    row = {
-        'name'    : cur[0],
-        'date_id' : cur[1],
-        'time_id' : cur[2],
-        'id'      : cur[4],
-        'deltaSeq': cur[3] - prev[3],
-        'deltaT'  : cur[2] - prev[2],
-        'period'  : float(cur[2] - prev[2])/(cur[3] - prev[3]),
-        'N'       : N,
-    }
+def write_daily_differences(connection, name, date_id, prev, cur, N):
+    try:
+        row = {
+            'name'    : name,
+            'date_id' : date_id,
+            'time_id' : cur[0],
+            'deltaT'  : cur[1] - prev[1],
+            'deltaSeq': cur[2] - prev[2],
+            'id'      : cur[3],
+            'period'  : float(cur[1] - prev[1])/(cur[2] - prev[2]),
+            'N'       : N,
+        }
+    except ZeroDivisionError as e:
+        logging.error("[{0}] {1}: on {2}-{3:06d}. Sequence number issue between {4} and {5}".format(__name__, name, date_id, cur[0], prev, cur))
+    else:
     #logging.info("[{0}] {4}-1 Differences for {1}, {2}-{3} ".format(__name__, row['name'], row['date_id'], row['time_id'], row['N']))
-    cursor = connection.cursor()
-    cursor.execute(
-        '''
-        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
-         VALUES(
-            :name,
-            :date_id,
-            :time_id,
-            :id,
-            :deltaSeq,
-            :deltaT,
-            :period,
-            :N
-        )
-        ''', row)
-    connection.commit()
+        cursor = connection.cursor()
+        cursor.execute(
+            '''
+            INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
+             VALUES(
+                :name,
+                :date_id,
+                :time_id,
+                :id,
+                :deltaSeq,
+                :deltaT,
+                :period,
+                :N
+            )
+            ''', row)
+        connection.commit()
 
 
 def compute_stats(connection):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        INSERT OR IGNORE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period)
+        INSERT OR REPLACE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period)
         SELECT tess, date_id, SUM(seconds_diff)/COUNT(*), MEDIAN(seconds_diff), STDEV(seconds_diff)
         FROM  first_differences_t
         GROUP BY tess, date_id
         ''')
-    connection.commit()   # return Cursor as an iterable
+    connection.commit()
 
 # ==============
 # MAIN FUNCTIONS
@@ -281,7 +285,7 @@ def input_slurp(connection, options):
         else:
             counter.update_date_id(row[1])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
-    logging.info("[{0}] Saving house keeping data".format(__name__))
+    logging.info("[{0}] Saving housekeeping data".format(__name__))
     factory.saveMax()
     connection.commit()
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
@@ -295,9 +299,9 @@ def input_stats(connection, options):
         name    = group[0]
         date_id = group[1]
         N       = group[2]
-        LL      = N / 20
+        LL      = N / 10
         i       = 0
-        logging.info("[{0}] Computing diff for {1} and {2} ({3} points)".format(__name__, name, date_id, N))
+        logging.info("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
         for point in tuple_generator(daily_iterable(connection, name, date_id), 2):
             if not all(point):
                 continue
@@ -305,8 +309,8 @@ def input_stats(connection, options):
                 prev, cur = point
                 i = (i + 1) % LL
                 if i == 0:
-                    logging.info("[{0}] {1}: date = {2}, id = {3}".format(__name__, cur[0], cur[1], cur[4]))
-                write_daily_differences(connection, prev, cur, N)
+                    logging.info("[{0}] {1}: on {2}-{3:06d}".format(__name__, name, date_id, cur[0]))
+                write_daily_differences(connection, name, date_id, prev, cur, N)
     compute_stats(connection)
     logging.info("[{0}] Done!".format(__name__))
 

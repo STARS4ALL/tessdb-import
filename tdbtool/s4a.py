@@ -102,5 +102,5 @@ class datetime(Datetime.datetime):
         '''
         Return date and time database identifiers
         '''
-        return 10000*self.year + 100*self.month + self.day, 100000*self.hour + 100*self.minute + self.second
+        return 10000*self.year + 100*self.month + self.day, 10000*self.hour + 100*self.minute + self.second
 
