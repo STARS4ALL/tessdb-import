@@ -105,12 +105,19 @@ class CounterFactory(object):
         return result[0] if result is not None else -1
 
 
-    def saveMax(self, max_date_id):
+    def saveMax(self, max_date_ids):
         cursor = self._connection.cursor()
         for key in self._pool.keys():
             try:
-                row = {'name': key, 'max_id': self._pool[key].current()-1, 'max_date_id': max_date_id[key]}
-                logging.info(row)
+                row = {
+                    'name': key, 
+                    'max_id': self._pool[key].current()-1, 
+                }
+                if key in max_date_ids:
+                    row['max_date_id'] = max_date_ids[key]
+                else:
+                    cursor.execute("SELECT max_date_id FROM housekeeping_t WHERE tess == :name", row)
+                    row['max_date_id'] = cursor.fetchone()[0]
                 cursor.execute(
                     '''
                     INSERT OR REPLACE INTO housekeeping_t(tess, max_id, max_date_id) 
@@ -262,6 +269,8 @@ def input_slurp(connection, options):
         else:
             temp = max_date_id.get(row[3],0)
             max_date_id[row[3]] = row[1] if row[1] > temp else temp
+    logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
+    logging.info("[{0}] Saving house keeping data".format(__name__))
     factory.saveMax(max_date_id)
     connection.commit()
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
