@@ -157,28 +157,31 @@ def csv_generator(filepath, factory):
     with open(filepath, "r") as csvfile:
         datareader = csv.reader(csvfile,delimiter=';')
         dummy = next(datareader)  # drops the header row
+        line_number = 2
         for srcrow in datareader:
             row = []
             dt = datetime.from_iso8601(srcrow[0], TSTAMP_FORMAT)
             #dateid, timeid, seconds = datetime.from_iso8601(srcrow[0],TSTAMP_FORMAT).to_dbase_ids()
             date_id, time_id = dt.to_dbase_ids()   
             counter = factory.build(srcrow[1])
-            row.append(counter.current())
-            row.append(date_id)            # date_id = 0
-            row.append(time_id)            # time_id = 1
-            row.append(srcrow[1])         # name = 3
-            row.append(int(srcrow[2]))    # sequence number = 4
-            row.append(float(srcrow[3]))  # frequency = 5
-            row.append(float(srcrow[4]))  # magnitude = 6
-            row.append(float(srcrow[5]))  # tamb = 7
-            row.append(float(srcrow[6]))  # tsky = 8
-            row.append(dt.to_seconds())   # number of seconds within the day = 9
-            row.append(date_id*1000000+time_id) # combined integer timestamp = 10
+            row.append(counter.current())  # rank = 0
+            row.append(date_id)            # date_id = 1
+            row.append(time_id)            # time_id = 2
+            row.append(srcrow[1])          # name = 3
+            row.append(int(srcrow[2]))     # sequence number = 4
+            row.append(float(srcrow[3]))   # frequency = 5
+            row.append(float(srcrow[4]))   # magnitude = 6
+            row.append(float(srcrow[5]))   # tamb = 7
+            row.append(float(srcrow[6]))   # tsky = 8
+            row.append(dt.to_seconds())    # number of seconds within the day = 9
             try:
                 val = int(srcrow[7])
             except Exception as e:
                 val = None
             row.append(val)                # RSS  = 10
+            row.append(date_id*1000000+time_id) # combined integer timestamp = 11
+            row.append(line_number)             # original file line number  = 12
+            line_number += 1
             yield row
 
 
@@ -259,14 +262,23 @@ def mark_duplicated_seqno(connection, row):
          ''', row)
     # Let the global commit do it
 
-def mark_duplicated_tstamp(connection, row):
+def mark_duplicated_tstamp(connection, row, file_name):
     '''Marks both rows with duplicated sequence num bers'''
     cursor = connection.cursor()
     cursor.execute(
         '''
-        INSERT OR IGNORE INTO duplicated_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp) 
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        INSERT OR IGNORE INTO duplicated_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', row)
+    row2 = { 'name': row[3], 'date_id': row[1], 'time_id': row[2], 'file': file_name}
+    cursor.execute(
+        '''
+        UPDATE duplicated_readings_t
+        SET file = :file 
+        WHERE  tess            == :name
+        AND    date_id         == :date_id
+        AND    time_id         == :time_id
+        ''', row2)
     # Let the global commit do it
 
 def compute_stats(connection):
@@ -293,24 +305,23 @@ def input_slurp(connection, options):
     for row in csv_generator(options.csv_file, factory):
         try:
             counter = factory.build(row[3])
-            if row[10] < counter.get_tstamp():
+            if row[11] < counter.get_tstamp():
                 # Skip old data
                 continue
             else:
                 counter.next()
                 cursor.execute(
                     '''
-                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp) 
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
         except sqlite3.IntegrityError as e:
-            mark_duplicated_tstamp(connection, row)
+            mark_duplicated_tstamp(connection, row, options.csv_file)
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
             oldv = counter.prev()
-            logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[10]))
-            mark_duplicated_tstamp(connection, row)
+            logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[11]))
         else:
-            counter.update_tstamp(row[10])
+            counter.update_tstamp(row[11])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
     logging.info("[{0}] Saving housekeeping data".format(__name__))
     factory.saveMax()

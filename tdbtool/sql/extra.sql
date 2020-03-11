@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
     tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
+    line_number         INTEGER NOT NULL, --original line number where dupliated appear
     rejected            TEXT,             -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
     PRIMARY KEY(date_id, time_id, tess)
 );
@@ -45,8 +46,11 @@ CREATE TABLE IF NOT EXISTS duplicated_readings_t
     longitude           REAL,
     latitude            REAL,
     height              REAL,
+     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
     tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
+    line_number         INTEGER NOT NULL, --original line number where dupliated appear
+    file                TEXT,
     PRIMARY KEY(date_id, time_id, tess)
 );
 
