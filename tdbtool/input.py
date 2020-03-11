@@ -77,9 +77,10 @@ class datetime(tdbtool.s4a.datetime):
 class Counter(object):
     '''A counter to inject in database'''
 
-    def __init__(self, value, max_tstamp):
+    def __init__(self, value, max_tstamp, persisted):
         self._value = value
         self._max_tstamp = max_tstamp
+        self._already_persisted = persisted
     def next(self):
         self._value += 1
         return self._value
@@ -95,8 +96,11 @@ class Counter(object):
     def update_tstamp(self, tstamp):
         self._max_tstamp = tstamp if tstamp > self._max_tstamp else self._max_tstamp
 
-    def get_tstamp(self):
-        return self._max_tstamp 
+    def max_tstamp(self):
+        return self._max_tstamp
+
+    def persisted(self):
+        return self._already_persisted 
 
 
 
@@ -130,7 +134,7 @@ class CounterFactory(object):
                 row['max_rank']    = 0
                 row['max_tstamp']  = 0
             logging.info("[{0}] Loading Counters {1}".format(__name__, row))
-        return row['max_rank'], row['max_tstamp']
+        return row['max_rank'], row['max_tstamp'], row['max_tstamp'] != 0
 
 
     def saveMax(self):
@@ -140,7 +144,7 @@ class CounterFactory(object):
                 row = {
                     'name': key, 
                     'max_rank': self._pool[key].current()-1,
-                    'max_tstamp' : self._pool[key].get_tstamp(),
+                    'max_tstamp' : self._pool[key].max_tstamp(),
                 }
                 cursor.execute(
                     '''
@@ -156,8 +160,8 @@ class CounterFactory(object):
 
     def build(self, name):
         if name not in self._pool.keys():
-            max_rank, max_tstamp = self.loadMax(name)
-            c = Counter(max_rank+1, max_tstamp)
+            max_rank, max_tstamp, persisted = self.loadMax(name)
+            c = Counter(max_rank+1, max_tstamp, persisted)
             self._pool[name] = c
         return self._pool[name]
 
@@ -338,25 +342,26 @@ def input_slurp(connection, options):
     cursor = connection.cursor()
     factory = CounterFactory(connection)
     for row in csv_generator(options.csv_file, factory):
-        try:
-            counter = factory.build(row[3])
-            if row[11] < counter.get_tstamp():
-                # Skip old data
-                continue
-            else:
-                counter.next()
+        counter = factory.build(row[3])
+        if row[11] < counter.max_tstamp():
+            # Skip old data
+            continue
+        else:
+            counter.next()
+            try:
                 cursor.execute(
                     '''
                     INSERT INTO raw_readings_t(rank, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
-        except sqlite3.IntegrityError as e:
-            mark_duplicated_tstamp(connection, row, options.csv_file)
-            duplicates[row[3]] = duplicates.get(row[3],0) + 1
-            oldv = counter.prev()
-            logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[11]))
-        else:
-            counter.update_tstamp(row[11])
+            except sqlite3.IntegrityError as e:
+                if not counter.persisted():
+                    mark_duplicated_tstamp(connection, row, options.csv_file)
+                    duplicates[row[3]] = duplicates.get(row[3],0) + 1
+                oldv = counter.prev()
+                logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[11]))
+            else:
+                counter.update_tstamp(row[11])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
     logging.info("[{0}] Saving housekeeping data".format(__name__))
     factory.saveMax()
