@@ -28,8 +28,9 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
 
 -- These are detected when reading the CSV file to
 -- the raw_readings trable
-CREATE TABLE IF NOT EXISTS duplicated_rows_t
+CREATE TABLE IF NOT EXISTS duplicated_readings_t
 (
+    id                  INTEGER NOT NULL,
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS duplicated_rows_t
     longitude           REAL,
     latitude            REAL,
     height              REAL,
+    seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
+    tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
     PRIMARY KEY(date_id, time_id, tess)
 );
 

@@ -222,7 +222,7 @@ def compute_daily_differences(name, date_id, prev, cur, N):
     try:
         row['period']  = float(cur[1] - prev[1])/(cur[2] - prev[2])
     except ZeroDivisionError:
-        logging.error("[{0}] {1}: on {2}-{3:06d}. Sequence number issue between {4} and {5}".format(__name__, name, date_id, cur[0], prev, cur))
+        logging.debug("[{0}] {1}: on {2}-{3:06d}. Sequence number issue between {4} and {5}".format(__name__, name, date_id, cur[0], prev, cur))
     finally:
         return row
 
@@ -248,9 +248,6 @@ def write_daily_differences(connection, iterable):
 
 def mark_duplicated_seqno(connection, row):
     '''Marks both rows with duplicated sequence num bers'''
-    newrow = { 'name': row['name'], 'date_id': row['date_id'], 'seqno': row['seqno']}
-    print(newrow)
-    print(len(newrow))
     cursor = connection.cursor()
     cursor.execute(
         '''
@@ -259,9 +256,18 @@ def mark_duplicated_seqno(connection, row):
         WHERE  tess            == :name
         AND    date_id         == :date_id
         AND    sequence_number == :seqno
-         ''', newrow)
+         ''', row)
     # Let the global commit do it
 
+def mark_duplicated_tstamp(connection, row):
+    '''Marks both rows with duplicated sequence num bers'''
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        INSERT OR IGNORE INTO duplicated_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp) 
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ''', row)
+    # Let the global commit do it
 
 def compute_stats(connection):
     cursor = connection.cursor()
@@ -298,9 +304,11 @@ def input_slurp(connection, options):
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
         except sqlite3.IntegrityError as e:
+            mark_duplicated_tstamp(connection, row)
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
             oldv = counter.prev()
             logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[10]))
+            mark_duplicated_tstamp(connection, row)
         else:
             counter.update_tstamp(row[10])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
