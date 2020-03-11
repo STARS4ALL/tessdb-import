@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     seconds_diff        INTEGER NOT NULL,
     period              REAL    NOT NULL,
     N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
-    control             INTEGER NOT NULL, -- control column. Should be 0.
+    control             INTEGER NOT NULL, -- control column. Should be 1.
     PRIMARY KEY(tess, date_id, time_id)
 );
 
