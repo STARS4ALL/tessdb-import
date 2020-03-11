@@ -282,14 +282,12 @@ def compute_stats(connection):
 def input_slurp(connection, options):
     logging.info("[{0}] Starting ingestion from {1}".format(__name__, options.csv_file))
     duplicates = {}
-    cur_tstamp = {}
     cursor = connection.cursor()
     factory = CounterFactory(connection)
     for row in csv_generator(options.csv_file, factory):
         try:
             counter = factory.build(row[3])
-            cur_tstamp[row[3]] = row[10]
-            if cur_tstamp[row[3]] < counter.get_tstamp():
+            if row[10] < counter.get_tstamp():
                 # Skip old data
                 continue
             else:
@@ -302,7 +300,7 @@ def input_slurp(connection, options):
         except sqlite3.IntegrityError as e:
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
             oldv = counter.prev()
-            logging.debug("[{0}] Duplicated row, restoring counter for {1} to {2}".format(__name__, row[3], oldv))
+            logging.debug("[{0}] Duplicated row on {3}, restoring counter for {1} to {2}".format(__name__, row[3], oldv, row[10]))
         else:
             counter.update_tstamp(row[10])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
