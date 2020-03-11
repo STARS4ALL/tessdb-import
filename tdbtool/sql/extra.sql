@@ -20,8 +20,9 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     latitude            REAL,
     height              REAL,
     --- Here start mnagamenet fields
-    seconds             INTEGER NOT NULL,
-    rejected            TEXT,   -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
+    seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
+    tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
+    rejected            TEXT,             -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
     PRIMARY KEY(date_id, time_id, tess)
 );
 
@@ -50,7 +51,7 @@ CREATE TABLE IF NOT EXISTS duplicated_rows_t
 CREATE TABLE IF NOT EXISTS housekeeping_t
 (
     tess                TEXT    ,
-    max_date_id         INTEGER , -- max date processed
+    max_tstamp          INTEGER , -- max timestamp processed per TESS-W
     max_id              INTEGER , -- max load counter id
     PRIMARY KEY(tess)
 );

@@ -64,10 +64,9 @@ class datetime(tdbtool.s4a.datetime):
 class Counter(object):
     '''A counter to inject in database'''
 
-    def __init__(self, value, max_date_id):
+    def __init__(self, value, max_tstamp):
         self._value = value
-        self._max_date_id = max_date_id
-
+        self._max_tstamp = max_tstamp
     def next(self):
         self._value += 1
         return self._value
@@ -79,11 +78,12 @@ class Counter(object):
     def current(self):
         return self._value
 
-    def update_date_id(self, date_id):
-        self._max_date_id = date_id if date_id > self._max_date_id else self._max_date_id
+    # These two metjhod manage the maximun timestamp per tess read in the input CSV file
+    def update_tstamp(self, tstamp):
+        self._max_tstamp = tstamp if tstamp > self._max_tstamp else self._max_tstamp
 
-    def date_id(self):
-        return self._max_date_id
+    def get_tstamp(self):
+        return self._max_tstamp 
 
 
 
@@ -101,23 +101,23 @@ class CounterFactory(object):
         try:
             cursor.execute(
                 '''
-                SELECT max_id, max_date_id FROM housekeeping_t
+                SELECT max_id, max_tstamp FROM housekeeping_t
                 WHERE tess == :name
                 ''', row)
         except Exception as e:
             logging.info("[{0}] table does not exist".format(__name__))
-            row['max_id']      = 0
-            row['max_date_id'] = 0
+            row['max_id']     = 0
+            row['max_tstamp'] = 0 
         else:
             result = cursor.fetchone()
             if result is not None:
-                row['max_id']      = result[0]
-                row['max_date_id'] = result[1]
+                row['max_id']     = result[0]
+                row['max_tstamp'] = result[1]
             else:
                 row['max_id']      = 0
-                row['max_date_id'] = 0
+                row['max_tstamp']  = 0
             logging.info("[{0}] Loading Counters {1}".format(__name__, row))
-        return row['max_id'], row['max_date_id']
+        return row['max_id'], row['max_tstamp']
 
 
     def saveMax(self):
@@ -127,12 +127,12 @@ class CounterFactory(object):
                 row = {
                     'name': key, 
                     'max_id': self._pool[key].current()-1,
-                    'max_date_id' : self._pool[key].date_id()   
+                    'max_tstamp' : self._pool[key].get_tstamp(),
                 }
                 cursor.execute(
                     '''
-                    INSERT OR REPLACE INTO housekeeping_t(tess, max_id, max_date_id) 
-                    VALUES (:name, :max_id, :max_date_id)
+                    INSERT OR REPLACE INTO housekeeping_t(tess, max_id, max_tstamp) 
+                    VALUES (:name, :max_id, :max_tstamp)
                     ''', row)
                 logging.info("[{0}] Saving counters {1}".format(__name__, row))
             except Exception as e:
@@ -143,8 +143,8 @@ class CounterFactory(object):
 
     def build(self, name):
         if name not in self._pool.keys():
-            value, max_date_id = self.loadMax(name)
-            c = Counter(value+1, max_date_id)
+            value, max_tstamp = self.loadMax(name)
+            c = Counter(value+1, max_tstamp)
             self._pool[name] = c
         return self._pool[name]
 
@@ -161,19 +161,19 @@ def csv_generator(filepath, factory):
             row = []
             dt = datetime.from_iso8601(srcrow[0], TSTAMP_FORMAT)
             #dateid, timeid, seconds = datetime.from_iso8601(srcrow[0],TSTAMP_FORMAT).to_dbase_ids()
-            dateid, timeid = dt.to_dbase_ids()
-            seconds = dt.to_seconds()
+            date_id, time_id = dt.to_dbase_ids()   
             counter = factory.build(srcrow[1])
             row.append(counter.current())
-            row.append(dateid)
-            row.append(timeid)
+            row.append(date_id)            # date_id = 0
+            row.append(time_id)            # time_id = 1
             row.append(srcrow[1])         # name = 3
             row.append(int(srcrow[2]))    # sequence number = 4
             row.append(float(srcrow[3]))  # frequency = 5
             row.append(float(srcrow[4]))  # magnitude = 6
             row.append(float(srcrow[5]))  # tamb = 7
             row.append(float(srcrow[6]))  # tsky = 8
-            row.append(seconds)           # number of seconds within the day = 9
+            row.append(dt.to_seconds())   # number of seconds within the day = 9
+            row.append(date_id*1000000+time_id) # combined integer timestamp = 10
             try:
                 val = int(srcrow[7])
             except Exception as e:
@@ -282,29 +282,29 @@ def compute_stats(connection):
 def input_slurp(connection, options):
     logging.info("[{0}] Starting ingestion from {1}".format(__name__, options.csv_file))
     duplicates = {}
-    max_date_id = {}
+    cur_tstamp = {}
     cursor = connection.cursor()
     factory = CounterFactory(connection)
     for row in csv_generator(options.csv_file, factory):
         try:
             counter = factory.build(row[3])
-            max_date_id = counter.date_id()
-            if row[1] < max_date_id:
+            cur_tstamp[row[3]] = row[10]
+            if cur_tstamp[row[3]] < counter.get_tstamp():
                 # Skip old data
                 continue
             else:
                 counter.next()
                 cursor.execute(
                     '''
-                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength) 
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp) 
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
         except sqlite3.IntegrityError as e:
             duplicates[row[3]] = duplicates.get(row[3],0) + 1
             oldv = counter.prev()
             logging.debug("[{0}] Duplicated row, restoring counter for {1} to {2}".format(__name__, row[3], oldv))
         else:
-            counter.update_date_id(row[1])
+            counter.update_tstamp(row[10])
     logging.info("[{0}] Ended ingestion from {1}".format(__name__, options.csv_file))
     logging.info("[{0}] Saving housekeeping data".format(__name__))
     factory.saveMax()
