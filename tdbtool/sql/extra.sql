@@ -21,8 +21,28 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     height              REAL,
     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL,
-    retained            INTEGER DEFAULT 0,
-    duplicated          INTEGER DEFAULT 0,
+    rejected            TEXT,   -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
+    PRIMARY KEY(date_id, time_id, tess)
+);
+
+-- These are detected when reading the CSV file to
+-- the raw_readings trable
+CREATE TABLE IF NOT EXISTS duplicated_rows_t
+(
+    date_id             INTEGER NOT NULL, 
+    time_id             INTEGER NOT NULL, 
+    tess                TEXT    NOT NULL,
+    sequence_number     INTEGER NOT NULL,
+    frequency           REAL    NOT NULL,
+    magnitude           REAL    NOT NULL,
+    ambient_temperature REAL    NOT NULL,
+    sky_temperature     REAL    NOT NULL,
+    signal_strength     INTEGER         ,
+    azimuth             REAL,
+    altitude            REAL,
+    longitude           REAL,
+    latitude            REAL,
+    height              REAL,
     PRIMARY KEY(date_id, time_id, tess)
 );
 

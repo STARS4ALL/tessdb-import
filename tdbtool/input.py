@@ -207,39 +207,60 @@ def daily_iterable(connection, name, date_id):
     return cursor   # return Cursor as an iterable
 
 
+def compute_daily_differences(name, date_id, prev, cur, N):
 
-def write_daily_differences(connection, name, date_id, prev, cur, N):
-    try:
-        row = {
+    row = {
             'name'    : name,
             'date_id' : date_id,
             'time_id' : cur[0],
             'deltaT'  : cur[1] - prev[1],
             'deltaSeq': cur[2] - prev[2],
             'id'      : cur[3],
-            'period'  : float(cur[1] - prev[1])/(cur[2] - prev[2]),
             'N'       : N,
+            'seqno'   : cur[2]
         }
-    except ZeroDivisionError as e:
+    try:
+        row['period']  = float(cur[1] - prev[1])/(cur[2] - prev[2])
+    except ZeroDivisionError:
         logging.error("[{0}] {1}: on {2}-{3:06d}. Sequence number issue between {4} and {5}".format(__name__, name, date_id, cur[0], prev, cur))
-    else:
-    #logging.info("[{0}] {4}-1 Differences for {1}, {2}-{3} ".format(__name__, row['name'], row['date_id'], row['time_id'], row['N']))
-        cursor = connection.cursor()
-        cursor.execute(
-            '''
-            INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
-             VALUES(
-                :name,
-                :date_id,
-                :time_id,
-                :id,
-                :deltaSeq,
-                :deltaT,
-                :period,
-                :N
-            )
-            ''', row)
-        connection.commit()
+    finally:
+        return row
+
+def write_daily_differences(connection, iterable):
+    logging.debug("[{0}] Wriiting differences".format(__name__))
+    cursor = connection.cursor()
+    cursor.executemany(
+        '''
+        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
+        VALUES(
+            :name,
+            :date_id,
+            :time_id,
+            :id,
+            :deltaSeq,
+            :deltaT,
+            :period,
+            :N
+        )
+         ''', iterable)
+    connection.commit()
+
+
+def mark_duplicated_seqno(connection, row):
+    '''Marks both rows with duplicated sequence num bers'''
+    newrow = { 'name': row['name'], 'date_id': row['date_id'], 'seqno': row['seqno']}
+    print(newrow)
+    print(len(newrow))
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        UPDATE raw_readings_t
+        SET    rejected = "Dup Sequence Number"
+        WHERE  tess            == :name
+        AND    date_id         == :date_id
+        AND    sequence_number == :seqno
+         ''', newrow)
+    # Let the global commit do it
 
 
 def compute_stats(connection):
@@ -291,30 +312,37 @@ def input_slurp(connection, options):
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
     #paging(cursor,["TESS","MAC","Site"])
 
-
+                
 def input_stats(connection, options):
     cursor = connection.cursor()
     logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
+    rows = []
     for group in name_and_date_iterable(connection):
         name    = group[0]
         date_id = group[1]
         N       = group[2]
-        LL      = N / 10
-        i       = 0
         logging.info("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
-        for point in tuple_generator(daily_iterable(connection, name, date_id), 2):
-            if not all(point):
+        for points in tuple_generator(daily_iterable(connection, name, date_id), 2):
+            if not all(points):
                 continue
             else:
-                prev, cur = point
-                i = (i + 1) % LL
-                if i == 0:
-                    logging.info("[{0}] {1}: on {2}-{3:06d}".format(__name__, name, date_id, cur[0]))
-                write_daily_differences(connection, name, date_id, prev, cur, N)
+                prev, cur = points
+                if len(rows) < 10000:
+                    row = compute_daily_differences(name, date_id, prev, cur, N)
+                    if 'period' in row:
+                        rows.append(row)
+                    else:
+                        mark_duplicated_seqno(connection, row)
+                else:
+                    write_daily_differences(connection, rows)
+                    rows = []
     compute_stats(connection)
     logging.info("[{0}] Done!".format(__name__))
 
                 
+
+
+   
 
 
    
