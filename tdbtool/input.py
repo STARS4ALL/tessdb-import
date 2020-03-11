@@ -324,8 +324,8 @@ def compute_stats(connection):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        INSERT OR REPLACE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period)
-        SELECT tess, date_id, SUM(seconds_diff)/COUNT(*), MEDIAN(seconds_diff), STDEV(seconds_diff)
+        INSERT OR REPLACE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period, N, quality)
+        SELECT tess, date_id, AVG(seconds_diff), MEDIAN(seconds_diff), STDEV(seconds_diff), COUNT(*), MEDIAN(seconds_diff)/STDEV(seconds_diff)
         FROM  first_differences_t
         GROUP BY tess, date_id
         ''')
