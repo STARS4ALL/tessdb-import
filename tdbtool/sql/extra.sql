@@ -4,7 +4,7 @@
 
 CREATE TABLE IF NOT EXISTS raw_readings_t
 (
-    id                  INTEGER NOT NULL,
+    rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
 -- the raw_readings trable
 CREATE TABLE IF NOT EXISTS duplicated_readings_t
 (
-    id                  INTEGER NOT NULL,
+    rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
     tess                TEXT    NOT NULL,
@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS duplicated_readings_t
     tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
     line_number         INTEGER NOT NULL, --original line number where dupliated appear
     file                TEXT,
+    iso8601             TEXT,             -- ISO 8601 timestamp string
     PRIMARY KEY(date_id, time_id, tess)
 );
 
@@ -59,7 +60,7 @@ CREATE TABLE IF NOT EXISTS housekeeping_t
 (
     tess                TEXT    ,
     max_tstamp          INTEGER , -- max timestamp processed per TESS-W
-    max_id              INTEGER , -- max load counter id
+    max_rank            INTEGER , -- max load counter id
     PRIMARY KEY(tess)
 );
 
@@ -69,11 +70,12 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     tess                TEXT    NOT NULL,
     date_id             INTEGER NOT NULL,
     time_id             INTEGER NOT NULL, -- final point of the difference
-    id                  INTEGER NOT NULL, -- final point of the difference
+    rank                INTEGER NOT NULL, -- final point of the difference
     seq_diff            INTEGER NOT NULL,
     seconds_diff        INTEGER NOT NULL,
     period              REAL    NOT NULL,
-    N                   INTEGER NOT NULL,  -- sample count DO WE NEED IT ???
+    N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
+    control             INTEGER NOT NULL, -- control column. Should be 0.
     PRIMARY KEY(tess, date_id, time_id)
 );
 

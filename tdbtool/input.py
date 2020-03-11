@@ -59,6 +59,19 @@ class datetime(tdbtool.s4a.datetime):
         '''
         return 3600*self.hour + 60*self.minute + self.second
 
+    @classmethod
+    def from_integer_iso8601(cls, tstamp):
+        '''Converts from an integer YYYYMMDDHHMMSS'''
+        date = tstamp // 1000000
+        time = tstamp %  1000000
+        yyyy = date // 10000
+        mmmm = (date % 10000) // 100
+        dd   = (date % 10000) %  100
+        hh   = time // 10000
+        mm   = (time % 10000) // 100
+        ss   = (time % 10000) %  100
+        return cls(yyyy, mmmm, dd, hh, mm, ss)
+
 
 
 class Counter(object):
@@ -101,23 +114,23 @@ class CounterFactory(object):
         try:
             cursor.execute(
                 '''
-                SELECT max_id, max_tstamp FROM housekeeping_t
+                SELECT max_rank, max_tstamp FROM housekeeping_t
                 WHERE tess == :name
                 ''', row)
         except Exception as e:
             logging.info("[{0}] table does not exist".format(__name__))
-            row['max_id']     = 0
+            row['max_rank']   = 0
             row['max_tstamp'] = 0 
         else:
             result = cursor.fetchone()
             if result is not None:
-                row['max_id']     = result[0]
+                row['max_rank']   = result[0]
                 row['max_tstamp'] = result[1]
             else:
-                row['max_id']      = 0
+                row['max_rank']    = 0
                 row['max_tstamp']  = 0
             logging.info("[{0}] Loading Counters {1}".format(__name__, row))
-        return row['max_id'], row['max_tstamp']
+        return row['max_rank'], row['max_tstamp']
 
 
     def saveMax(self):
@@ -126,13 +139,13 @@ class CounterFactory(object):
             try:
                 row = {
                     'name': key, 
-                    'max_id': self._pool[key].current()-1,
+                    'max_rank': self._pool[key].current()-1,
                     'max_tstamp' : self._pool[key].get_tstamp(),
                 }
                 cursor.execute(
                     '''
-                    INSERT OR REPLACE INTO housekeeping_t(tess, max_id, max_tstamp) 
-                    VALUES (:name, :max_id, :max_tstamp)
+                    INSERT OR REPLACE INTO housekeeping_t(tess, max_rank, max_tstamp) 
+                    VALUES (:name, :max_rank, :max_tstamp)
                     ''', row)
                 logging.info("[{0}] Saving counters {1}".format(__name__, row))
             except Exception as e:
@@ -143,8 +156,8 @@ class CounterFactory(object):
 
     def build(self, name):
         if name not in self._pool.keys():
-            value, max_tstamp = self.loadMax(name)
-            c = Counter(value+1, max_tstamp)
+            max_rank, max_tstamp = self.loadMax(name)
+            c = Counter(max_rank+1, max_tstamp)
             self._pool[name] = c
         return self._pool[name]
 
@@ -202,7 +215,7 @@ def daily_iterable(connection, name, date_id):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT time_id, seconds, sequence_number, id
+        SELECT time_id, seconds, sequence_number, rank
         FROM   raw_readings_t
         WHERE  tess = :name
         AND    date_id = :date_id
@@ -211,16 +224,16 @@ def daily_iterable(connection, name, date_id):
 
 
 def compute_daily_differences(name, date_id, prev, cur, N):
-
     row = {
             'name'    : name,
             'date_id' : date_id,
             'time_id' : cur[0],
             'deltaT'  : cur[1] - prev[1],
             'deltaSeq': cur[2] - prev[2],
-            'id'      : cur[3],
+            'rank'    : cur[3],
             'N'       : N,
-            'seqno'   : cur[2]
+            'seqno'   : cur[2],
+            'ctrl'    : cur[3] - prev[3]
         }
     try:
         row['period']  = float(cur[1] - prev[1])/(cur[2] - prev[2])
@@ -234,16 +247,17 @@ def write_daily_differences(connection, iterable):
     cursor = connection.cursor()
     cursor.executemany(
         '''
-        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, id, seq_diff, seconds_diff, period, N)
+        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control)
         VALUES(
             :name,
             :date_id,
             :time_id,
-            :id,
+            :rank,
             :deltaSeq,
             :deltaT,
             :period,
-            :N
+            :N,
+            :ctrl
         )
          ''', iterable)
     connection.commit()
@@ -262,19 +276,40 @@ def mark_duplicated_seqno(connection, row):
          ''', row)
     # Let the global commit do it
 
+
+def mark_corner_cases(connection, name, date_id, N):
+    '''Marks daily readings for a given TESS-W when N is 1 or 2'''
+    if N > 2:
+        return
+    row = {'name': name, 'date_id': date_id}
+    if N == 1:
+        row['reason'] = 'Single'
+    else:
+        row['reason'] = 'Pair'
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        UPDATE raw_readings_t
+        SET    rejected = :reason
+        WHERE  tess            == :name
+        AND    date_id         == :date_id
+         ''', row)
+    # Let the global commit do it
+
 def mark_duplicated_tstamp(connection, row, file_name):
     '''Marks both rows with duplicated sequence num bers'''
     cursor = connection.cursor()
     cursor.execute(
         '''
-        INSERT OR IGNORE INTO duplicated_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+        INSERT OR IGNORE INTO duplicated_readings_t(rank, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', row)
     row2 = { 'name': row[3], 'date_id': row[1], 'time_id': row[2], 'file': file_name}
+    row2['iso8601'] = datetime.from_integer_iso8601(row[11]).to_iso8601(TSTAMP_FORMAT)
     cursor.execute(
         '''
         UPDATE duplicated_readings_t
-        SET file = :file 
+        SET file = :file, iso8601 = :iso8601 
         WHERE  tess            == :name
         AND    date_id         == :date_id
         AND    time_id         == :time_id
@@ -312,7 +347,7 @@ def input_slurp(connection, options):
                 counter.next()
                 cursor.execute(
                     '''
-                    INSERT INTO raw_readings_t(id, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+                    INSERT INTO raw_readings_t(rank, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
         except sqlite3.IntegrityError as e:
@@ -338,6 +373,7 @@ def input_stats(connection, options):
         name    = group[0]
         date_id = group[1]
         N       = group[2]
+        mark_corner_cases(connection, name, date_id, N)
         logging.info("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
         for points in tuple_generator(daily_iterable(connection, name, date_id), 2):
             if not all(points):
