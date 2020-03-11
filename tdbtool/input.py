@@ -355,7 +355,7 @@ def input_slurp(connection, options):
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
             except sqlite3.IntegrityError as e:
-                if not counter.persisted():
+                if row[11] == counter.max_tstamp() and not counter.persisted():
                     mark_duplicated_tstamp(connection, row, options.csv_file)
                     duplicates[row[3]] = duplicates.get(row[3],0) + 1
                 oldv = counter.prev()
