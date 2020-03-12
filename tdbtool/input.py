@@ -24,22 +24,22 @@ import logging
 import csv
 import traceback
 
-# Access  template withing the package
-from pkg_resources import resource_filename
-
 # -------------
 # Local imports
 # -------------
 
 import tdbtool.s4a
 from .      import __version__
-from .utils import paging, tuple_generator
+from .utils import tuple_generator
 
 # ----------------
 # Module constants
 # ----------------
 
-TSTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
+TSTAMP_FORMAT  = "%Y-%m-%dT%H:%M:%SZ"
+DUP_SEQ_NUMBER = "Dup Sequence Number"
+SINGLE = "Single"
+PAIR   = "Pair"
 
 # -----------------------
 # Module global variables
@@ -268,15 +268,17 @@ def write_daily_differences(connection, iterable):
 
 
 def mark_duplicated_seqno(connection, row):
-    '''Marks both rows with duplicated sequence num bers'''
+    '''Marks the most recent rows with duplicated sequence number'''
+    row['reason'] = DUP_SEQ_NUMBER
     cursor = connection.cursor()
     cursor.execute(
         '''
         UPDATE raw_readings_t
-        SET    rejected = "Dup Sequence Number"
+        SET    rejected = :reason
         WHERE  tess            == :name
         AND    date_id         == :date_id
-        AND    sequence_number == :seqno
+        AND    time_id         == :time_id
+        #AND    sequence_number == :seqno
          ''', row)
     # Let the global commit do it
 
@@ -287,9 +289,9 @@ def mark_corner_cases(connection, name, date_id, N):
         return
     row = {'name': name, 'date_id': date_id}
     if N == 1:
-        row['reason'] = 'Single'
+        row['reason'] = SINGLE
     else:
-        row['reason'] = 'Pair'
+        row['reason'] = PAIR
     cursor = connection.cursor()
     cursor.execute(
         '''
@@ -367,7 +369,6 @@ def input_slurp(connection, options):
     factory.saveMax()
     connection.commit()
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
-    #paging(cursor,["TESS","MAC","Site"])
 
                 
 def input_stats(connection, options):
