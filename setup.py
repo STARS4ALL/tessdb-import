@@ -18,6 +18,7 @@ URL          = 'http://github.com/stars4all/tessdb-comdline/'
 PACKAGES     = ["tess"]
 DEPENDENCIES = [
                   'tabulate',
+                  'matplotlib'
 ]
 
 CLASSIFIERS  = [

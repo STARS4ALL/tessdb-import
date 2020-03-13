@@ -15,8 +15,11 @@ import argparse
 import sqlite3
 import os
 import os.path
-import datetime
+import logging
 import traceback
+
+# Access  template withing the package
+from pkg_resources import resource_filename
 
 #--------------
 # other imports
@@ -24,8 +27,10 @@ import traceback
 
 from . import __version__
 
-from .utils import utf8
-from .input import *
+from .utils import utf8, mkdate
+from .input import input_slurp, input_differences
+from .stats import stats_daily, stats_global, stats_retained
+from .plot  import plot_histogram
 
 
 # ----------------
@@ -44,11 +49,6 @@ DEFAULT_SQLITE_MODULE = "/usr/local/lib/libsqlitefunctions.so"
 # Module global functions
 # -----------------------
 
-def utf8(s):
-    if sys.version_info[0] < 3:
-        return unicode(s, 'utf8')
-    else:
-        return (s)
 
 def open_database(dbase_path):
     if not os.path.exists(dbase_path):
@@ -66,6 +66,7 @@ def configureLogging(options):
         level = logging.INFO
     logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=level)
 
+
 def create_datamodel(options, conn1):
     datamodel_path = resource_filename(__name__, 'sql/extra.sql')
     with open(datamodel_path) as f: 
@@ -73,6 +74,7 @@ def create_datamodel(options, conn1):
     script = ''.join(lines)
     logging.info("[{0}] Creating data model from {1}".format(__name__, datamodel_path))
     conn1.executescript(script)
+
 
 def createParser():
     # create the top-level parser
@@ -93,18 +95,44 @@ def createParser():
 
     subparser = parser.add_subparsers(dest='command')
     parser_input = subparser.add_parser('input', help='input commands')
+    parser_stats = subparser.add_parser('stats', help='plot commands')
+    parser_plot  = subparser.add_parser('plot',  help='plot commands')
+   
 
     # ------------------------------------------
     # Create second level parsers for 'input'
     # ------------------------------------------
-    # Choices:
-    #   tdbtool input slurp
-    #
+  
     subparser = parser_input.add_subparsers(dest='subcommand')
     isl = subparser.add_parser('slurp', help='ingest input file')
     isl.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    ist = subparser.add_parser('differences', help='compute differences between consecutive readings')
 
-    ist = subparser.add_parser('stats', help='calculate Tx period stats')
+    # ------------------------------------------
+    # Create second level parsers for 'stats'
+    # ------------------------------------------
+  
+    subparser = parser_stats.add_subparsers(dest='subcommand')
+    sdy = subparser.add_parser('daily',  help='compute daily period statistics')
+    
+    sgl = subparser.add_parser('global', help='compute global period statistics')
+    sgl.add_argument('--name', type=str, help='TESS-W name to set the global period to')
+    sgl.add_argument('--period', type=float, metavar='<T>', help='Set global period for a given TESS-W')
+
+    sre = subparser.add_parser('retained', help='figure out retained values')
+    sre.add_argument('--name', type=str, help='TESS-W name to set the global period to')
+    sre.add_argument('--period', type=float, metavar='<T>', help='period for a given TESS-W')
+    sre.add_argument('--tolerance', type=int, default= 0, metavar='<%>', help='period tolerance to add')
+    
+    # ------------------------------------------
+    # Create second level parsers for 'plot'
+    # ------------------------------------------
+
+    subparser = parser_plot.add_subparsers(dest='subcommand')
+    phi = subparser.add_parser('histogram', help='TESS-W Tx period histogram from timestamps')
+    phi.add_argument('--name', required=True, type=str, help='TESS-W name')
+    phi.add_argument('--start-date', type=mkdate, metavar="<YYYY-MM-DD>", help='Optional start date')
+    phi.add_argument('--end-date',   type=mkdate, metavar="<YYYY-MM-DD>", help='Optional end date')
 
     return parser
 
@@ -133,8 +161,6 @@ def create_datamodel(connection, options):
     script = ''.join(lines)
     logging.info("[{0}] Creating data model from {1}".format(__name__,datamodel_path))
     connection.executescript(script)
-
-
 
 
 def main():

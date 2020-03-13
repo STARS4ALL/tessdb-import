@@ -1,0 +1,26 @@
+PLOTS
+=====
+* period 1D Histogram plot --bin=<N>
+* Sequence Difference, Time difference 2D histogram plot --bin=<N>
+* period vs Time to see gaps and bumps
+
+
+
+MODULE STATS
+
+
+* retained detection with the following query
+
+SELECT (r.date_id || 'T' || r.time_id || 'Z') as tstamp, r.tess, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength, r.rank
+FROM raw_readings_t AS r
+JOIN first_differences_t AS d
+WHERE r.tess    == d.tess
+AND   r.date_id == d.date_id
+AND   r.time_id == d.time_id
+AND   d.seq_diff > 1
+AND   d.seconds_diff < :period
+AND   r.tess == :name
+ORDER BY tstamp ASC;
+
+* Display previous reading to detected retained and also display the rejection status. 
+Maybe it has been marked as a Duplicated Seq. Number

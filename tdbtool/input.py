@@ -92,7 +92,7 @@ class Counter(object):
     def current(self):
         return self._value
 
-    # These two metjhod manage the maximun timestamp per tess read in the input CSV file
+    # These two methods manage the maximun timestamp per TESS-W read in the input CSV file
     def update_tstamp(self, tstamp):
         self._max_tstamp = tstamp if tstamp > self._max_tstamp else self._max_tstamp
 
@@ -119,7 +119,7 @@ class CounterFactory(object):
             cursor.execute(
                 '''
                 SELECT max_rank, max_tstamp FROM housekeeping_t
-                WHERE tess == :name
+                WHERE name == :name
                 ''', row)
         except Exception as e:
             logging.info("[{0}] table does not exist".format(__name__))
@@ -148,7 +148,7 @@ class CounterFactory(object):
                 }
                 cursor.execute(
                     '''
-                    INSERT OR REPLACE INTO housekeeping_t(tess, max_rank, max_tstamp) 
+                    INSERT OR REPLACE INTO housekeeping_t(name, max_rank, max_tstamp) 
                     VALUES (:name, :max_rank, :max_tstamp)
                     ''', row)
                 logging.info("[{0}] Saving counters {1}".format(__name__, row))
@@ -206,10 +206,10 @@ def name_and_date_iterable(connection):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT  tess, date_id, count(*)
+        SELECT  name, date_id, count(*)
         FROM    raw_readings_t
-        GROUP BY tess, date_id
-        ORDER BY tess ASC, date_id ASC
+        GROUP BY name, date_id
+        ORDER BY name ASC, date_id ASC
         ''')
     return cursor   # return Cursor as an iterable
 
@@ -221,7 +221,7 @@ def daily_iterable(connection, name, date_id):
         '''
         SELECT time_id, seconds, sequence_number, rank
         FROM   raw_readings_t
-        WHERE  tess = :name
+        WHERE  name = :name
         AND    date_id = :date_id
         ''', row)
     return cursor   # return Cursor as an iterable
@@ -251,7 +251,7 @@ def write_daily_differences(connection, iterable):
     cursor = connection.cursor()
     cursor.executemany(
         '''
-        INSERT OR IGNORE INTO first_differences_t(tess, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control)
+        INSERT OR IGNORE INTO first_differences_t(name, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control)
         VALUES(
             :name,
             :date_id,
@@ -275,10 +275,10 @@ def mark_duplicated_seqno(connection, row):
         '''
         UPDATE raw_readings_t
         SET    rejected = :reason
-        WHERE  tess            == :name
+        WHERE  name            == :name
         AND    date_id         == :date_id
         AND    time_id         == :time_id
-        #AND    sequence_number == :seqno
+        -- AND    sequence_number == :seqno
          ''', row)
     # Let the global commit do it
 
@@ -297,7 +297,7 @@ def mark_corner_cases(connection, name, date_id, N):
         '''
         UPDATE raw_readings_t
         SET    rejected = :reason
-        WHERE  tess            == :name
+        WHERE  name            == :name
         AND    date_id         == :date_id
          ''', row)
     # Let the global commit do it
@@ -307,7 +307,7 @@ def mark_duplicated_tstamp(connection, row, file_name):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        INSERT OR IGNORE INTO duplicated_readings_t(rank, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+        INSERT OR IGNORE INTO duplicated_readings_t(rank, date_id, time_id, name, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', row)
     row2 = { 'name': row[3], 'date_id': row[1], 'time_id': row[2], 'file': file_name}
@@ -316,22 +316,11 @@ def mark_duplicated_tstamp(connection, row, file_name):
         '''
         UPDATE duplicated_readings_t
         SET file = :file, iso8601 = :iso8601 
-        WHERE  tess            == :name
+        WHERE  name            == :name
         AND    date_id         == :date_id
         AND    time_id         == :time_id
         ''', row2)
     # Let the global commit do it
-
-def compute_stats(connection):
-    cursor = connection.cursor()
-    cursor.execute(
-        '''
-        INSERT OR REPLACE INTO stats_t(tess, date_id, mean_period, median_period, stddev_period, N, quality)
-        SELECT tess, date_id, AVG(seconds_diff), MEDIAN(seconds_diff), STDEV(seconds_diff), COUNT(*), MEDIAN(seconds_diff)/STDEV(seconds_diff)
-        FROM  first_differences_t
-        GROUP BY tess, date_id
-        ''')
-    connection.commit()
 
 # ==============
 # MAIN FUNCTIONS
@@ -353,7 +342,7 @@ def input_slurp(connection, options):
             try:
                 cursor.execute(
                     '''
-                    INSERT INTO raw_readings_t(rank, date_id, time_id, tess, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
+                    INSERT INTO raw_readings_t(rank, date_id, time_id, name, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, seconds, signal_strength, tstamp, line_number) 
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
                     ''', row)
             except sqlite3.IntegrityError as e:
@@ -371,7 +360,7 @@ def input_slurp(connection, options):
     logging.info("[{0}] Duplicates summary: {1}".format(__name__, duplicates))
 
                 
-def input_stats(connection, options):
+def input_differences(connection, options):
     cursor = connection.cursor()
     logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
     rows = []
@@ -395,7 +384,6 @@ def input_stats(connection, options):
                 else:
                     write_daily_differences(connection, rows)
                     rows = []
-    compute_stats(connection)
     logging.info("[{0}] Done!".format(__name__))
 
                 

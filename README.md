@@ -1,6 +1,6 @@
-# tessdb command line (overview)
+# tdbtool command line (overview)
 
-Linux command line utility.  TESS stands for [Cristobal Garcia's Telescope Encoder and Sky Sensor](http://www.observatorioremoto.com/TESS.pdf)
+TESS data base data import tool.
 It is being used as part of the [STARS4ALL Project](http://www.stars4all.eu/).
 
 ## Description
@@ -44,32 +44,14 @@ The latest version of the data model can be found in **tessdb-server** repositor
 
 # COMMANDS
 
-The `tess` command line tool is self-explanatory and has several subcommands. You can find the all by typing `tess --help`
+The `tdbtool` command line tool is self-explanatory and has several subcommands. You can find the all by typing `tdbtool --help`
 ```
-pi@rb-tess:~ $ tess --help
-usage: /usr/local/bin/tess [-h] {instrument,location,readings} ...
 
-positional arguments:
-  {instrument,location,readings}
-    instrument          instrument commands
-    location            location commands
-    readings            readings commands
-
-optional arguments:
-  -h, --help            show this help message and exit
 ```
 
 Each subcommand has its own help that you may display by issuing `tess <subcommand> --help`
 
 Example:
 ```
-pi@rb-tess:~ $ tess location list --help
-usage: /usr/local/bin/tess location list [-h] [-p PAGE_SIZE] [-d DBASE]
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -p PAGE_SIZE, --page-size PAGE_SIZE
-                        list page size
-  -d DBASE, --dbase DBASE
-                        SQLite database full file path
 ```

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
-    tess                TEXT    NOT NULL,
+    name                TEXT    NOT NULL, -- TESS-W name
     sequence_number     INTEGER NOT NULL,
     frequency           REAL    NOT NULL,
     magnitude           REAL    NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
     line_number         INTEGER NOT NULL, --original line number where dupliated appear
     rejected            TEXT,             -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
-    PRIMARY KEY(date_id, time_id, tess)
+    PRIMARY KEY(date_id, time_id, name)
 );
 
 -- These are detected when reading the CSV file to
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS duplicated_readings_t
     rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
-    tess                TEXT    NOT NULL,
+    name                TEXT    NOT NULL, -- TESS-W name
     sequence_number     INTEGER NOT NULL,
     frequency           REAL    NOT NULL,
     magnitude           REAL    NOT NULL,
@@ -52,22 +52,22 @@ CREATE TABLE IF NOT EXISTS duplicated_readings_t
     line_number         INTEGER NOT NULL, --original line number where dupliated appear
     file                TEXT,
     iso8601             TEXT,             -- ISO 8601 timestamp string
-    PRIMARY KEY(date_id, time_id, tess)
+    PRIMARY KEY(date_id, time_id, name)
 );
 
 -- This table helps save time when loading CSV files
 CREATE TABLE IF NOT EXISTS housekeeping_t
 (
-    tess                TEXT    ,
+    name                TEXT    , -- TESS-W name
     max_tstamp          INTEGER , -- max timestamp processed per TESS-W
     max_rank            INTEGER , -- max load counter id
-    PRIMARY KEY(tess)
+    PRIMARY KEY(name)
 );
 
 
 CREATE TABLE IF NOT EXISTS first_differences_t
 (
-    tess                TEXT    NOT NULL,
+    name                TEXT    NOT NULL, -- TESS-W name
     date_id             INTEGER NOT NULL,
     time_id             INTEGER NOT NULL, -- final point of the difference
     rank                INTEGER NOT NULL, -- final point of the difference
@@ -76,18 +76,27 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     period              REAL    NOT NULL,
     N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
     control             INTEGER NOT NULL, -- control column. Should be 1.
-    PRIMARY KEY(tess, date_id, time_id)
+    PRIMARY KEY(name, date_id, time_id)
 );
 
 
-CREATE TABLE IF NOT EXISTS stats_t
+CREATE TABLE IF NOT EXISTS daily_stats_t
 (
 	date_id             INTEGER NOT NULL, 
-	tess                TEXT    NOT NULL,
-	median_period       REAL,	-- median Tx period over a day
-	mean_period         REAL,   -- median Tx period over a day
-	stddev_period       REAL,   -- period stddev over a day
-    quality             REAL,   -- median/stddev over a day
-    N                   INTEGER NOT NULL, -- differences count
-	PRIMARY KEY (date_id, tess)
+	name                TEXT    NOT NULL, -- TESS-W name
+	median_period       REAL,	          -- median Tx period over a day
+	mean_period         REAL,             -- average Tx period over a day
+	stddev_period       REAL,             -- period stddev over a day
+    quality             REAL,             -- median/stddev over a day
+    N                   INTEGER NOT NULL, -- sample count where median was computed
+	PRIMARY KEY (date_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS global_stats_t
+( 
+    name                TEXT    NOT NULL, -- TESS-W name
+    median_period       REAL,             -- overall median Tx period
+    method              TEXT    NOT NULL, -- either 'Manual' or 'Automatic'
+    N                   INTEGER NOT NULL, -- sample count where median was computed
+    PRIMARY KEY (name)
 );
