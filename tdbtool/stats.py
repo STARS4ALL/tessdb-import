@@ -37,14 +37,11 @@ from .utils import paging
 # ----------------
 
 TSTAMP_FORMAT  = "%Y-%m-%dT%H:%M:%SZ"
-DUP_SEQ_NUMBER = "Dup Sequence Number"
-SINGLE = "Single"
-PAIR   = "Pair"
+RETAINED       = "Retained"
 
 # -----------------------
 # Module global variables
 # -----------------------
-
 
 def automatic_global_stats(connection):
     row = {'method': "Automatic"}
@@ -111,18 +108,36 @@ def retained_iterable(connection, name, period, tolerance):
 def previous_iterable(connection, iterable):
     result = []
     for srcrow in iterable:
-        row = {'rank': srcrow[0]}
+        row = {'rank': srcrow[0], 'name': srcrow[3]}
         cursor = connection.cursor()
         cursor.execute(
             '''
             SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
             FROM raw_readings_t AS r
             WHERE r.rank == :rank - 1
+            AND   r.name == :name
             AND   r.rejected IS NULL
             ''', row)
-        result.append(cursor.fetchone())
+        temp = cursor.fetchone()
+        if temp is not None:
+            result.append(temp)
     return result
 
+def mark_lone_retained(connection, iterable):
+    cursor = connection.cursor()
+    for row in iterable:
+        row['reason'] = RETAINED
+        cursor.execute(
+            '''
+            UPDATE raw_readings_t
+            SET    rejected = :reason
+            WHERE  name            == :name
+            AND    date_id         == :date_id
+            AND    time_id         == :time_id
+            -- AND    sequence_number == :seqno
+             ''', row)
+    connection.commit()
+    
 
 # ==============
 # MAIN FUNCTIONS
@@ -156,4 +171,20 @@ def stats_global(connection, options):
 
 def stats_retained(connection, options):
     iterable =  previous_iterable(connection, retained_iterable(connection, options.name, options.period, options.tolerance))
-    paging(iterable,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=100)
+    if options.display:
+        paging(iterable,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=100)
+    else:
+        mark_lone_retained(connection, iterable)
+        
+
+def stats_inspect(connection, options):
+    row = {'name': options.name, 'rank': options.rank, 'width':  options.width}
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT rank, rejected, tstamp, name, sequence_number, frequency, magnitude, ambient_temperature, sky_temperature, signal_strength
+        FROM raw_readings_t 
+        WHERE name == :name
+        AND   rank  BETWEEN :rank - :width AND :rank + :width
+        ''', row)
+    paging(cursor,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=2*options.width+1)

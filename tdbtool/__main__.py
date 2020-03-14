@@ -29,7 +29,7 @@ from . import __version__
 
 from .utils import utf8, mkdate
 from .input import input_slurp, input_differences
-from .stats import stats_daily, stats_global, stats_retained
+from .stats import stats_daily, stats_global, stats_retained, stats_inspect
 from .plot  import plot_histogram
 
 
@@ -124,6 +124,13 @@ def createParser():
     sre.add_argument('--period', type=float, metavar='<T>', help='period for a given TESS-W')
     sre.add_argument('--tolerance', type=int, default= 0, metavar='<%>', help='period tolerance to add')
     sre.add_argument('--display', action='store_true', help='display candidates only')
+
+    sin = subparser.add_parser('inspect', help='Inspect input values around a given rank')
+    sin.add_argument('--name', required=True, type=str, help='TESS-W name to set the global period to')
+    sin.add_argument('--rank', required=True, type=int, metavar='<N>', help='rank order')
+    sin.add_argument('--width', type=int, default= 3, metavar='<N>', help='display width')
+
+   
     
     # ------------------------------------------
     # Create second level parsers for 'plot'
