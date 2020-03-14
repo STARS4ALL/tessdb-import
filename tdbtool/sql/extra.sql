@@ -71,6 +71,7 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     name                TEXT    NOT NULL, -- TESS-W name
     date_id             INTEGER NOT NULL,
     time_id             INTEGER NOT NULL, -- final point of the difference
+    tstamp              TEXT    NOT NULL, -- final point of the difference
     rank                INTEGER NOT NULL, -- final point of the difference
     seq_diff            INTEGER NOT NULL,
     seconds_diff        INTEGER NOT NULL,

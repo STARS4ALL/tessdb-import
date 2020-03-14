@@ -122,13 +122,16 @@ def paging(cursor, headers, size=10):
         else:
             break
 
-def paging(iterable, headers, size=10):
+def paging(iterable, headers, maxsize=10, page_size=10):
     '''
     Pages query output and displays in tabular format
     '''
-    ONE_PAGE = 10
-    for rows in packet_generator(iterable, ONE_PAGE):
+   
+    for rows in packet_generator(iterable, page_size):
         print(tabulate.tabulate(rows, headers=headers, tablefmt='grid'))
-        if len(rows) == ONE_PAGE:
+        maxsize -= page_size
+        if len(rows) == page_size and maxsize > 0:
             raw_input("Press Enter to continue [Ctrl-C to abort] ...")
+        else:
+            break
     

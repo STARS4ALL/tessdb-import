@@ -208,7 +208,7 @@ def daily_iterable(connection, name, date_id):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT time_id, seconds, sequence_number, rank
+        SELECT time_id, seconds, sequence_number, rank, tstamp
         FROM   raw_readings_t
         WHERE  name = :name
         AND    date_id = :date_id
@@ -226,7 +226,8 @@ def compute_daily_differences(name, date_id, prev, cur, N):
             'rank'    : cur[3],
             'N'       : N,
             'seqno'   : cur[2],
-            'ctrl'    : cur[3] - prev[3]
+            'ctrl'    : cur[3] - prev[3],
+            'tstamp'  : cur[4],
         }
     try:
         row['period']  = float(cur[1] - prev[1])/(cur[2] - prev[2])
@@ -240,7 +241,7 @@ def write_daily_differences(connection, iterable):
     cursor = connection.cursor()
     cursor.executemany(
         '''
-        INSERT OR IGNORE INTO first_differences_t(name, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control)
+        INSERT OR IGNORE INTO first_differences_t(name, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control, tstamp)
         VALUES(
             :name,
             :date_id,
@@ -250,7 +251,8 @@ def write_daily_differences(connection, iterable):
             :deltaT,
             :period,
             :N,
-            :ctrl
+            :ctrl,
+            :tstamp
         )
          ''', iterable)
     connection.commit()

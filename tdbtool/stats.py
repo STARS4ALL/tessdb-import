@@ -95,7 +95,7 @@ def retained_iterable(connection, name, period, tolerance):
     cursor = connection.cursor()
     cursor.execute(
         '''
-        SELECT r.rank, r.rejected, (r.date_id || 'T' || r.time_id || 'Z') as tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+        SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
         FROM raw_readings_t AS r
         JOIN first_differences_t AS d
         WHERE r.name    == d.name
@@ -104,7 +104,7 @@ def retained_iterable(connection, name, period, tolerance):
         AND   d.seq_diff > 1
         AND   d.seconds_diff < :period
         AND   r.name == :name
-        ORDER BY tstamp ASC;
+        ORDER BY r.tstamp ASC;
         ''', row)
     return cursor
 
@@ -115,12 +115,12 @@ def previous_iterable(connection, iterable):
         cursor = connection.cursor()
         cursor.execute(
             '''
-            SELECT r.rank, r.rejected, (r.date_id || 'T' || r.time_id || 'Z') as tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+            SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
             FROM raw_readings_t AS r
             WHERE r.rank == :rank - 1
             ''', row)
         result.append(srcrow)
-        #result.append(cursor.fetchone())
+        result.append(cursor.fetchone())
     return result
 
 
@@ -156,4 +156,4 @@ def stats_global(connection, options):
 
 def stats_retained(connection, options):
     iterable =  previous_iterable(connection, retained_iterable(connection, options.name, options.period, options.tolerance))
-    paging(iterable,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], size=100)
+    paging(iterable,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=100)
