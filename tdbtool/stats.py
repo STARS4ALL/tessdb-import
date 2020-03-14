@@ -104,7 +104,7 @@ def retained_iterable(connection, name, period, tolerance):
         AND   d.seq_diff > 1
         AND   d.seconds_diff < :period
         AND   r.name == :name
-        ORDER BY r.tstamp ASC;
+        ORDER BY r.name ASC, r.tstamp ASC;
         ''', row)
     return cursor
 
@@ -118,8 +118,8 @@ def previous_iterable(connection, iterable):
             SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
             FROM raw_readings_t AS r
             WHERE r.rank == :rank - 1
+            AND   r.rejected IS NULL
             ''', row)
-        result.append(srcrow)
         result.append(cursor.fetchone())
     return result
 

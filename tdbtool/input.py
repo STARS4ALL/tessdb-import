@@ -268,8 +268,8 @@ def mark_duplicated_seqno(connection, row):
         SET    rejected = :reason
         WHERE  name            == :name
         AND    date_id         == :date_id
-        -- AND    time_id         == :time_id
-        AND    sequence_number == :seqno
+        AND    time_id         == :time_id
+        -- AND    sequence_number == :seqno
          ''', row)
     # Let the global commit do it
 

@@ -62,7 +62,7 @@ TSTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 # Module global functions
 # -----------------------
 
-ef plot1(name):
+def plot1(name):
 	iterable = daily_average_iterable(connection,name)
 	time, median_period = zip(*iterable)
 	median_period = np.array(median_period, dtype=float)
