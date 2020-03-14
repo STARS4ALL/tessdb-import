@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     PRIMARY KEY(date_id, time_id, name)
 );
 
+CREATE INDEX IF NOT EXISTS raw_readings_i  ON raw_readings_t(rank);
+
 -- These are detected when reading the CSV file to
 -- the raw_readings trable
 CREATE TABLE IF NOT EXISTS duplicated_readings_t

@@ -90,6 +90,40 @@ def display_global_stats(connection, name):
     paging(cursor,["Name","Median Period (s)", "Sample Count", "Compute method"])
 
 
+def retained_iterable(connection, name, period, tolerance):
+    row = {'name': name, 'period': period*(1.0 + tolerance/100.0) }
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT r.rank, r.rejected, (r.date_id || 'T' || r.time_id || 'Z') as tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+        FROM raw_readings_t AS r
+        JOIN first_differences_t AS d
+        WHERE r.name    == d.name
+        AND   r.date_id == d.date_id
+        AND   r.time_id == d.time_id
+        AND   d.seq_diff > 1
+        AND   d.seconds_diff < :period
+        AND   r.name == :name
+        ORDER BY tstamp ASC;
+        ''', row)
+    return cursor
+
+def previous_iterable(connection, iterable):
+    result = []
+    for srcrow in iterable:
+        row = {'rank': srcrow[0]}
+        cursor = connection.cursor()
+        cursor.execute(
+            '''
+            SELECT r.rank, r.rejected, (r.date_id || 'T' || r.time_id || 'Z') as tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+            FROM raw_readings_t AS r
+            WHERE r.rank == :rank - 1
+            ''', row)
+        result.append(srcrow)
+        #result.append(cursor.fetchone())
+    return result
+
+
 # ==============
 # MAIN FUNCTIONS
 # ==============
@@ -121,4 +155,5 @@ def stats_global(connection, options):
     logging.info("[{0}] Done!".format(__name__))
 
 def stats_retained(connection, options):
-    pass
+    iterable =  previous_iterable(connection, retained_iterable(connection, options.name, options.period, options.tolerance))
+    paging(iterable,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], size=100)

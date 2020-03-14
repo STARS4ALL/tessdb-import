@@ -81,6 +81,26 @@ def tuple_generator(iterable, N):
         q.append(current)
         yield tuple(x for x in q)
 
+def packet_generator(iterable, size):
+    '''Generates a sequence of 'size' items from an iterable'''
+    finished = False
+    while not finished:
+        acc = []
+        for i in range(0,size):
+            try:
+                obj = iterable.next()
+            except AttributeError:
+                iterable = iter(iterable)
+                obj = iterable.next()
+                acc.append(obj)
+            except StopIteration:
+                finished = True
+                break
+            else:
+                acc.append(obj)
+        if len(acc):
+            yield acc
+
 # ==============
 # DATABASE STUFF
 # ==============
@@ -102,3 +122,13 @@ def paging(cursor, headers, size=10):
         else:
             break
 
+def paging(iterable, headers, size=10):
+    '''
+    Pages query output and displays in tabular format
+    '''
+    ONE_PAGE = 10
+    for rows in packet_generator(iterable, ONE_PAGE):
+        print(tabulate.tabulate(rows, headers=headers, tablefmt='grid'))
+        if len(rows) == ONE_PAGE:
+            raw_input("Press Enter to continue [Ctrl-C to abort] ...")
+    

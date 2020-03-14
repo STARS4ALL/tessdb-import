@@ -120,9 +120,10 @@ def createParser():
     sgl.add_argument('--period', type=float, metavar='<T>', help='Set global period for a given TESS-W')
 
     sre = subparser.add_parser('retained', help='figure out retained values')
-    sre.add_argument('--name', type=str, help='TESS-W name to set the global period to')
+    sre.add_argument('--name', required=True, type=str, help='TESS-W name to set the global period to')
     sre.add_argument('--period', type=float, metavar='<T>', help='period for a given TESS-W')
     sre.add_argument('--tolerance', type=int, default= 0, metavar='<%>', help='period tolerance to add')
+    sre.add_argument('--display', action='store_true', help='display candidates only')
     
     # ------------------------------------------
     # Create second level parsers for 'plot'
