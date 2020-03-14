@@ -4,10 +4,11 @@
 
 CREATE TABLE IF NOT EXISTS raw_readings_t
 (
+    name                TEXT    NOT NULL, -- TESS-W name
     rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
-    name                TEXT    NOT NULL, -- TESS-W name
+    tstamp              TEXT    NOT NULL, -- ISO8601 timestamp
     sequence_number     INTEGER NOT NULL,
     frequency           REAL    NOT NULL,
     magnitude           REAL    NOT NULL,
@@ -21,10 +22,9 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     height              REAL,
     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
-    tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
-    line_number         INTEGER NOT NULL, --original line number where dupliated appear
+    line_number         INTEGER NOT NULL, -- original line number where dupliated appear
     rejected            TEXT,             -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
-    PRIMARY KEY(date_id, time_id, name)
+    PRIMARY KEY(name, date_id, time_id)
 );
 
 CREATE INDEX IF NOT EXISTS raw_readings_i  ON raw_readings_t(rank);
@@ -33,10 +33,11 @@ CREATE INDEX IF NOT EXISTS raw_readings_i  ON raw_readings_t(rank);
 -- the raw_readings trable
 CREATE TABLE IF NOT EXISTS duplicated_readings_t
 (
+    name                TEXT    NOT NULL, -- TESS-W name
     rank                INTEGER NOT NULL, -- insertion order
     date_id             INTEGER NOT NULL, 
     time_id             INTEGER NOT NULL, 
-    name                TEXT    NOT NULL, -- TESS-W name
+    tstamp              TEXT    NOT NULL, -- ISO8601 timestamp
     sequence_number     INTEGER NOT NULL,
     frequency           REAL    NOT NULL,
     magnitude           REAL    NOT NULL,
@@ -50,18 +51,16 @@ CREATE TABLE IF NOT EXISTS duplicated_readings_t
     height              REAL,
      --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
-    tstamp              INTEGER NOT NULL, -- Combined date_id + time_id as integer
-    line_number         INTEGER NOT NULL, --original line number where dupliated appear
+    line_number         INTEGER NOT NULL, -- original line number where dupliated appear
     file                TEXT,
-    iso8601             TEXT,             -- ISO 8601 timestamp string
-    PRIMARY KEY(date_id, time_id, name)
+    PRIMARY KEY(name, date_id, time_id)
 );
 
 -- This table helps save time when loading CSV files
 CREATE TABLE IF NOT EXISTS housekeeping_t
 (
     name                TEXT    , -- TESS-W name
-    max_tstamp          INTEGER , -- max timestamp processed per TESS-W
+    max_tstamp          TEXT    , -- max ISO8601 timestamp processed per TESS-W
     max_rank            INTEGER , -- max load counter id
     PRIMARY KEY(name)
 );
@@ -91,7 +90,7 @@ CREATE TABLE IF NOT EXISTS daily_stats_t
 	stddev_period       REAL,             -- period stddev over a day
     quality             REAL,             -- median/stddev over a day
     N                   INTEGER NOT NULL, -- sample count where median was computed
-	PRIMARY KEY (date_id, name)
+	PRIMARY KEY (name, date_id)
 );
 
 CREATE TABLE IF NOT EXISTS global_stats_t

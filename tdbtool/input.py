@@ -36,10 +36,12 @@ from .utils import tuple_generator
 # Module constants
 # ----------------
 
-TSTAMP_FORMAT  = "%Y-%m-%dT%H:%M:%SZ"
-DUP_SEQ_NUMBER = "Dup Sequence Number"
-SINGLE = "Single"
-PAIR   = "Pair"
+ROWS_PER_COMMIT = 50000
+TSTAMP_FORMAT   = "%Y-%m-%dT%H:%M:%SZ"
+MIN_TIMESTAMP   = '0001-01-01T:00:00:00Z'
+DUP_SEQ_NUMBER  = "Dup Sequence Number"
+SINGLE          = "Single"
+PAIR            = "Pair"
 
 # -----------------------
 # Module global variables
@@ -58,19 +60,6 @@ class datetime(tdbtool.s4a.datetime):
         Return date and time database identifiers + seconds within the day
         '''
         return 3600*self.hour + 60*self.minute + self.second
-
-    @classmethod
-    def from_integer_iso8601(cls, tstamp):
-        '''Converts from an integer YYYYMMDDHHMMSS'''
-        date = tstamp // 1000000
-        time = tstamp %  1000000
-        yyyy = date // 10000
-        mmmm = (date % 10000) // 100
-        dd   = (date % 10000) %  100
-        hh   = time // 10000
-        mm   = (time % 10000) // 100
-        ss   = (time % 10000) %  100
-        return cls(yyyy, mmmm, dd, hh, mm, ss)
 
 
 
@@ -124,7 +113,7 @@ class CounterFactory(object):
         except Exception as e:
             logging.info("[{0}] table does not exist".format(__name__))
             row['max_rank']   = 0
-            row['max_tstamp'] = 0 
+            row['max_tstamp'] = MIN_TIMESTAMP
         else:
             result = cursor.fetchone()
             if result is not None:
@@ -132,9 +121,9 @@ class CounterFactory(object):
                 row['max_tstamp'] = result[1]
             else:
                 row['max_rank']    = 0
-                row['max_tstamp']  = 0
+                row['max_tstamp']  = MIN_TIMESTAMP
             logging.info("[{0}] Loading Counters {1}".format(__name__, row))
-        return row['max_rank'], row['max_tstamp'], row['max_tstamp'] != 0
+        return row['max_rank'], row['max_tstamp'], row['max_tstamp'] != MIN_TIMESTAMP
 
 
     def saveMax(self):
@@ -196,8 +185,8 @@ def csv_generator(filepath, factory):
             except Exception as e:
                 val = None
             row.append(val)                # RSS  = 10
-            row.append(date_id*1000000+time_id) # combined integer timestamp = 11
-            row.append(line_number)             # original file line number  = 12
+            row.append(srcrow[0])          # ISO8601 timestamp = 11
+            row.append(line_number)        # original file line number  = 12
             line_number += 1
             yield row
 
@@ -311,14 +300,13 @@ def mark_duplicated_tstamp(connection, row, file_name):
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', row)
     row2 = { 'name': row[3], 'date_id': row[1], 'time_id': row[2], 'file': file_name}
-    row2['iso8601'] = datetime.from_integer_iso8601(row[11]).to_iso8601(TSTAMP_FORMAT)
     cursor.execute(
         '''
         UPDATE duplicated_readings_t
-        SET file = :file, iso8601 = :iso8601 
-        WHERE  name            == :name
-        AND    date_id         == :date_id
-        AND    time_id         == :time_id
+        SET    file = :file
+        WHERE  name    == :name
+        AND    date_id == :date_id
+        AND    time_id == :time_id
         ''', row2)
     # Let the global commit do it
 
@@ -375,7 +363,7 @@ def input_differences(connection, options):
                 continue
             else:
                 prev, cur = points
-                if len(rows) < 10000:
+                if len(rows) < ROWS_PER_COMMIT:
                     row = compute_daily_differences(name, date_id, prev, cur, N)
                     if 'period' in row:
                         rows.append(row)
