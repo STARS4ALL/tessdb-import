@@ -22,6 +22,11 @@ import sqlite3
 import logging
 import traceback
 
+# Python3 catch
+try:
+    raw_input
+except:
+    raw_input = input 
 
 # ----------------
 # MatPlotLib stuff
@@ -62,18 +67,45 @@ TSTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 # Module global functions
 # -----------------------
 
-def plot_period(name):
-	iterable = daily_average_iterable(connection, name)
-	time, median_period = zip(*iterable)
-	median_period = np.array(median_period, dtype=float)
+def daily_period_iterable(connection, name, central):
+	row = {'name': name}
+	cursor = connection.cursor()
+	if central == "median":
+		cursor.execute(
+			'''
+			SELECT median_period
+			FROM   daily_stats_t
+			WHERE  name = :name
+			''', row)
+	else:
+		cursor.execute(
+			'''
+			SELECT mean_period
+			FROM   daily_stats_t
+			WHERE  name = :name
+			''', row)
+	return cursor   # return Cursor as an iterable
+
+
+def plot_period(connection, options):
+	iterable = daily_period_iterable(connection, options.name, options.central)
+	period = zip(*iterable)
+	period = np.array(period[0], dtype=float)
 	fig, axs = plt.subplots(1, 1, tight_layout=True)
+	plt.ion()
 	plt.yscale('log')
 	plt.ylabel('Counts')
-	plt.grid(True)
-	axs.hist(median_period, bins=100)
+	#plt.grid(True)
+	plt.grid(b=True, which='major', color='b', linestyle='-')
+	plt.grid(b=True, which='minor', color='r', linestyle=':')
+	plt.title('Period histogram for {0}'.format(options.name))
+	axs.hist(period, bins=options.bins)
 	plt.show()
+	raw_input("Press <ENTER> to exit")
 
-def plot_differences(name):
+
+
+def plot_differences(connection, options):
 	fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
 	plt.yscale('log')
 	plt.ylabel('Counts')
@@ -97,7 +129,7 @@ def plot_differences(name):
 
 
 def plot_histogram(connection, options):
-    plt.ioff()  # Turns off interactive mode
-    pass
+	plt.ioff()  # Turns off interactive mode
+	pass
 
 

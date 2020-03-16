@@ -27,7 +27,7 @@ from pkg_resources import resource_filename
 
 from . import __version__
 
-from .utils import utf8, mkdate
+from .utils import utf8, mkdate, percent
 from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated
@@ -106,14 +106,14 @@ def createParser():
   
     subparser = parser_input.add_subparsers(dest='subcommand')
     isl = subparser.add_parser('slurp', help='ingest input file')
-   
     isl.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+
     ist = subparser.add_parser('differences', help='compute differences between consecutive readings')
 
     isr = subparser.add_parser('retained', help='fix isolated out retained values')
     isr.add_argument('--name', required=True, type=str, help='TESS-W name to set the global period to')
     isr.add_argument('--period', required=True, type=float, metavar='<T>', help='period for a given TESS-W')
-    isr.add_argument('--tolerance', type=int, default= 0, metavar='<%>', help='period tolerance to add')
+    isr.add_argument('--tolerance', type=percent, default=0, metavar='%', help='period tolerance to add')
     isr.add_argument('--test', action='store_true', help='period tolerance to add')
     isr.add_argument('--limit',  type=int, default=10, metavar="<N>", help='Optional limit')
 
@@ -137,6 +137,8 @@ def createParser():
     ppe.add_argument('--name', required=True, type=str, help='TESS-W name')
     ppe.add_argument('--start-date', type=mkdate, metavar="<YYYY-MM-DD>", help='Optional start date')
     ppe.add_argument('--end-date',   type=mkdate, metavar="<YYYY-MM-DD>", help='Optional end date')
+    ppe.add_argument('--bins',  type=int, default=50, metavar="<N>", help='Number of histogram bins')
+    ppe.add_argument('--central',   choices=["mean", "median"], default="median", help='Central tendency estimate')
 
     pdi = subparser.add_parser('differences', help='TESS-W Tx period 2-D histogram differences')
     pdi.add_argument('--name', required=True, type=str, help='TESS-W name')

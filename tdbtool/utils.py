@@ -73,6 +73,10 @@ def utf8(s):
     else:
         return (s)
 
+def percent(n):
+   n = max(n,0)
+   n = min(n,100)
+   return n
 
 def tuple_generator(iterable, N):
     '''Partitions a very long iterable in tuples of size N'''
@@ -83,6 +87,7 @@ def tuple_generator(iterable, N):
 
 
 if sys.version_info[0] < 3:
+    # Python 2 version
     def packet_generator(iterable, size):
         '''Generates a sequence of 'size' items from an iterable'''
         finished = False
@@ -103,6 +108,7 @@ if sys.version_info[0] < 3:
             if len(acc):
                 yield acc
 else:
+    # Python 3 version
     def packet_generator(iterable, size):
         '''Generates a sequence of 'size' items from an iterable'''
         finished = False
@@ -132,7 +138,7 @@ def paging(iterable, headers, maxsize=10, page_size=10):
         print(tabulate.tabulate(rows, headers=headers, tablefmt='grid'))
         maxsize -= page_size
         if len(rows) == page_size and maxsize > 0:
-            raw_input("Press Enter to continue [Ctrl-C to abort] ...")
+            raw_input("Press <Enter> to continue or [Ctrl-C] to abort ...")
         else:
             break
 
