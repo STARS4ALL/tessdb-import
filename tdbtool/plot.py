@@ -86,6 +86,18 @@ def daily_period_iterable(connection, name, central):
 			''', row)
 	return cursor   # return Cursor as an iterable
 
+def differences_iterable(connection, name):
+	row = {'name': name}
+	cursor = connection.cursor()
+	cursor.execute(
+			'''
+			SELECT seconds_diff, seq_diff
+			FROM   first_differences_t
+			WHERE  name = :name
+			''', row)
+	
+	return cursor   # return Cursor as an iterable
+
 
 def plot_period(connection, options):
 	iterable = daily_period_iterable(connection, options.name, options.central)
@@ -105,21 +117,21 @@ def plot_period(connection, options):
 
 
 
+
 def plot_differences(connection, options):
-	fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
-	plt.yscale('log')
-	plt.ylabel('Counts')
-	plt.grid(True)
-	plt.title('Histogram of Differnces in time and sequence numbers')
-	min_seq, max_seq, min_sec, max_sec = daily_differences_range(connection, name)
-	iterable = daily_differences_iterable(connection,name)
-	time, seq_diff, seconds_diff = zip(*iterable)
-	seconds_diff = np.array(seconds_diff, dtype=int)
-	seq_diff     = np.array(seq_diff,     dtype=int)
-	print("ARRAYS CREADOS")
-	axs[0].hist(seconds_diff, bins=100)
-	axs[1].hist(seq_diff,     bins=100)
+	iterable = differences_iterable(connection, options.name)
+	delta_T, delta_Seq = zip(*iterable)
+	delta_T   = np.array(delta_T, dtype=float)
+	delta_Seq = np.array(delta_Seq, dtype=float)
+	fig, axs = plt.subplots(1, 1, tight_layout=True)
+	plt.ion()
+	plt.title('2D differences histogram for {0}'.format(options.name))
+	plt.ylabel('Delta Sequence')
+	plt.ylabel('Delta Time')
+	hist = axs.hist2d(delta_Seq, delta_T,  bins=options.bins, norm=colors.LogNorm())
 	plt.show()
+	raw_input("Press <ENTER> to exit")
+
 
 
 

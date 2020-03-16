@@ -144,6 +144,7 @@ def createParser():
     pdi.add_argument('--name', required=True, type=str, help='TESS-W name')
     pdi.add_argument('--start-date', type=mkdate, metavar="<YYYY-MM-DD>", help='Optional start date')
     pdi.add_argument('--end-date',   type=mkdate, metavar="<YYYY-MM-DD>", help='Optional end date')
+    pdi.add_argument('--bins',  type=int, default=20, metavar="<N>", help='Number of histogram bins')
 
     # ------------------------------------------
     # Create second level parsers for 'show'

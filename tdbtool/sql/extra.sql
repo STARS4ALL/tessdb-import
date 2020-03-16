@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS first_differences_t
     time_id             INTEGER NOT NULL, -- final point of the difference
     tstamp              TEXT    NOT NULL, -- final point of the difference
     rank                INTEGER NOT NULL, -- final point of the difference
-    seq_diff            INTEGER NOT NULL,
-    seconds_diff        INTEGER NOT NULL,
+    seq_diff            INTEGER NOT NULL, -- sequence number difference
+    seconds_diff        INTEGER NOT NULL, -- time difference in seconds
     period              REAL    NOT NULL,
     N                   INTEGER NOT NULL, -- sample count DO WE NEED IT ???
     control             INTEGER NOT NULL, -- control column. Should be 1.
