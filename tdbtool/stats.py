@@ -41,7 +41,7 @@ from .utils import paging, previous_iterable
 # Module global variables
 # -----------------------
 
-def automatic_global_stats(connection):
+def stats_global_auto(connection):
     row = {'method': "Automatic"}
     cursor = connection.cursor()
     cursor.execute(
@@ -54,7 +54,7 @@ def automatic_global_stats(connection):
     connection.commit()
 
 
-def manual_global_stats(connection, name, period):
+def stats_global_manual(connection, name, period):
     row = {'name': name, 'period': period, 'method': "Manual", 'N':0}
     cursor = connection.cursor()
     cursor.execute(
@@ -88,10 +88,10 @@ def stats_global(connection, options):
     logging.info("[{0}] computing global period statistics".format(__name__))
     if options.name is not None:
         if options.period is not None:
-            manual_global_stats(connection, options.name, options.period)
+            stats_global_manual(connection, options.name, options.period)
         else:
             logging.error("[{0}] a period must be specified with --period".format(__name__))
     else:
-        automatic_global_stats(connection)
+        stats_global_auto(connection)
     logging.info("[{0}] Done!".format(__name__))
 

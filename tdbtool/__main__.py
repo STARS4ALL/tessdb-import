@@ -32,6 +32,7 @@ from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated
 from .plot  import plot_period, plot_differences
+from .pipeline import pipeline_stage1
 
 
 # ----------------
@@ -99,6 +100,7 @@ def createParser():
     parser_stats = subparser.add_parser('stats', help='plot commands')
     parser_plot  = subparser.add_parser('plot',  help='plot commands')
     parser_show  = subparser.add_parser('show',  help='show commands')
+    parser_pipe  = subparser.add_parser('pipeline',  help='pipeline commands')
 
     # ------------------------------------------
     # Create second level parsers for 'input'
@@ -145,6 +147,14 @@ def createParser():
     pdi.add_argument('--start-date', type=mkdate, metavar="<YYYY-MM-DD>", help='Optional start date')
     pdi.add_argument('--end-date',   type=mkdate, metavar="<YYYY-MM-DD>", help='Optional end date')
     pdi.add_argument('--bins',  type=int, default=20, metavar="<N>", help='Number of histogram bins')
+
+    # ------------------------------------------
+    # Create second level parsers for 'pipeline'
+    # ------------------------------------------
+
+    subparser = parser_pipe.add_subparsers(dest='subcommand')
+    pp1 = subparser.add_parser('stage1', help='Stage 1 Pipeline')
+    pp1.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
 
     # ------------------------------------------
     # Create second level parsers for 'show'
