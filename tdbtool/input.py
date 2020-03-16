@@ -31,7 +31,7 @@ import traceback
 import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
-from .utils import tuple_generator
+from .utils import tuple_generator, previous_iterable, paging
 
 # ----------------
 # Module constants
@@ -187,6 +187,25 @@ def csv_generator(filepath, factory):
             row.append(line_number)        # original file line number  = 12
             line_number += 1
             yield row
+
+
+def retained_iterable(connection, name, period, tolerance):
+    row = {'name': name, 'period': period*(1.0 + tolerance/100.0) }
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+        FROM raw_readings_t AS r
+        JOIN first_differences_t AS d
+        WHERE r.name    == d.name
+        AND   r.date_id == d.date_id
+        AND   r.time_id == d.time_id
+        AND   d.seq_diff > 1
+        AND   d.seconds_diff < :period
+        AND   r.name == :name
+        ORDER BY r.name ASC, r.tstamp ASC;
+        ''', row)
+    return cursor
 
 
 def name_and_date_iterable(connection):

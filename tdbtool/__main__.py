@@ -28,7 +28,7 @@ from pkg_resources import resource_filename
 from . import __version__
 
 from .utils import utf8, mkdate
-from .input import input_slurp, input_differences
+from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated
 from .plot  import plot_period, plot_differences
@@ -115,6 +115,7 @@ def createParser():
     isr.add_argument('--period', required=True, type=float, metavar='<T>', help='period for a given TESS-W')
     isr.add_argument('--tolerance', type=int, default= 0, metavar='<%>', help='period tolerance to add')
     isr.add_argument('--test', action='store_true', help='period tolerance to add')
+    isr.add_argument('--limit',  type=int, default=10, metavar="<N>", help='Optional limit')
 
     # ------------------------------------------
     # Create second level parsers for 'stats'

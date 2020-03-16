@@ -82,25 +82,46 @@ def tuple_generator(iterable, N):
         yield tuple(x for x in q)
 
 
-def packet_generator(iterable, size):
-    '''Generates a sequence of 'size' items from an iterable'''
-    finished = False
-    while not finished:
-        acc = []
-        for i in range(0,size):
-            try:
-                obj = iterable.next()
-            except AttributeError:
-                iterable = iter(iterable)
-                obj = iterable.__next__()
-                acc.append(obj)
-            except StopIteration:
-                finished = True
-                break
-            else:
-                acc.append(obj)
-        if len(acc):
-            yield acc
+if sys.version_info[0] < 3:
+    def packet_generator(iterable, size):
+        '''Generates a sequence of 'size' items from an iterable'''
+        finished = False
+        while not finished:
+            acc = []
+            for i in range(0,size):
+                try:
+                    obj = iterable.next()
+                except AttributeError:
+                    iterable = iter(iterable)
+                    obj = iterable.next()
+                    acc.append(obj)
+                except StopIteration:
+                    finished = True
+                    break
+                else:
+                    acc.append(obj)
+            if len(acc):
+                yield acc
+else:
+    def packet_generator(iterable, size):
+        '''Generates a sequence of 'size' items from an iterable'''
+        finished = False
+        while not finished:
+            acc = []
+            for i in range(0,size):
+                try:
+                    obj = iterable.__next__()
+                except AttributeError:
+                    iterable = iter(iterable)
+                    obj = iterable.__next__()
+                    acc.append(obj)
+                except StopIteration:
+                    finished = True
+                    break
+                else:
+                    acc.append(obj)
+            if len(acc):
+                yield acc
 
 
 def paging(iterable, headers, maxsize=10, page_size=10):
@@ -118,25 +139,6 @@ def paging(iterable, headers, maxsize=10, page_size=10):
 # ==============
 # DATABASE STUFF
 # ==============
-
-
-def retained_iterable(connection, name, period, tolerance):
-    row = {'name': name, 'period': period*(1.0 + tolerance/100.0) }
-    cursor = connection.cursor()
-    cursor.execute(
-        '''
-        SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
-        FROM raw_readings_t AS r
-        JOIN first_differences_t AS d
-        WHERE r.name    == d.name
-        AND   r.date_id == d.date_id
-        AND   r.time_id == d.time_id
-        AND   d.seq_diff > 1
-        AND   d.seconds_diff < :period
-        AND   r.name == :name
-        ORDER BY r.name ASC, r.tstamp ASC;
-        ''', row)
-    return cursor
 
 
 def previous_iterable(connection, iterable):

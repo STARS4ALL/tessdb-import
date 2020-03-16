@@ -31,7 +31,7 @@ import traceback
 import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
-from .utils import paging, retained_iterable, previous_iterable
+from .utils import paging, previous_iterable
 
 # ----------------
 # Module constants
