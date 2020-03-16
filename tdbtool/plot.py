@@ -91,7 +91,7 @@ def differences_iterable(connection, name):
 	cursor = connection.cursor()
 	cursor.execute(
 			'''
-			SELECT seconds_diff, seq_diff
+			SELECT delta_T, delta_seq
 			FROM   first_differences_t
 			WHERE  name = :name
 			''', row)

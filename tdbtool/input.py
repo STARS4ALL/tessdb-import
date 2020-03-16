@@ -200,8 +200,8 @@ def retained_iterable(connection, name, period, tolerance):
         WHERE r.name    == d.name
         AND   r.date_id == d.date_id
         AND   r.time_id == d.time_id
-        AND   d.seq_diff > 1
-        AND   d.seconds_diff < :period
+        AND   d.delta_seq > 1
+        AND   d.delta_T < :period
         AND   r.name == :name
         ORDER BY r.name ASC, r.tstamp ASC;
         ''', row)
@@ -259,7 +259,7 @@ def write_daily_differences(connection, iterable):
     cursor = connection.cursor()
     cursor.executemany(
         '''
-        INSERT OR IGNORE INTO first_differences_t(name, date_id, time_id, rank, seq_diff, seconds_diff, period, N, control, tstamp)
+        INSERT OR IGNORE INTO first_differences_t(name, date_id, time_id, rank, delta_seq, delta_T, period, N, control, tstamp)
         VALUES(
             :name,
             :date_id,

@@ -135,7 +135,7 @@ def show_differences(connection, options):
     if options.name is None:
         cursor.execute(
             '''
-            SELECT name, rank, tstamp, seq_diff, seconds_diff, period
+            SELECT name, rank, tstamp, delta_seq, delta_T, period
             FROM first_differences_t
             ORDER BY name ASC
             ''')
@@ -143,7 +143,7 @@ def show_differences(connection, options):
         row = {'name': options.name}
         cursor.execute(
             '''
-            SELECT name, rank, tstamp, seq_diff, seconds_diff, period
+            SELECT name, rank, tstamp, delta_seq, delta_T, period
             FROM first_differences_t
             WHERE name == :name
             ''', row)

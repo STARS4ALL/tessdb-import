@@ -76,7 +76,7 @@ def stats_daily(connection, options):
     cursor.execute(
         '''
         INSERT OR REPLACE INTO daily_stats_t(name, date_id, mean_period, median_period, stddev_period, N, min_period, max_period)
-        SELECT name, date_id, AVG(seconds_diff), MEDIAN(seconds_diff), STDEV(seconds_diff), COUNT(*), MIN(seconds_diff), MAX(seconds_diff)
+        SELECT name, date_id, AVG(delta_T), MEDIAN(delta_T), STDEV(delta_T), COUNT(*), MIN(delta_T), MAX(delta_T)
         FROM  first_differences_t
         GROUP BY name, date_id
         ''')
