@@ -81,6 +81,7 @@ def tuple_generator(iterable, N):
         q.append(current)
         yield tuple(x for x in q)
 
+
 def packet_generator(iterable, size):
     '''Generates a sequence of 'size' items from an iterable'''
     finished = False
@@ -91,7 +92,7 @@ def packet_generator(iterable, size):
                 obj = iterable.next()
             except AttributeError:
                 iterable = iter(iterable)
-                obj = iterable.next()
+                obj = iterable.__next__()
                 acc.append(obj)
             except StopIteration:
                 finished = True
@@ -101,32 +102,11 @@ def packet_generator(iterable, size):
         if len(acc):
             yield acc
 
-# ==============
-# DATABASE STUFF
-# ==============
- 
-
-def paging(cursor, headers, size=10):
-    '''
-    Pages query output and displays in tabular format
-    '''
-    ONE_PAGE = 10
-    while True:
-        result = cursor.fetchmany(ONE_PAGE)
-        print(tabulate.tabulate(result, headers=headers, tablefmt='grid'))
-        if len(result) < ONE_PAGE:
-            break
-        size -= ONE_PAGE
-        if size > 0:
-            raw_input("Press Enter to continue [Ctrl-C to abort] ...")
-        else:
-            break
 
 def paging(iterable, headers, maxsize=10, page_size=10):
     '''
     Pages query output and displays in tabular format
     '''
-   
     for rows in packet_generator(iterable, page_size):
         print(tabulate.tabulate(rows, headers=headers, tablefmt='grid'))
         maxsize -= page_size
@@ -134,4 +114,45 @@ def paging(iterable, headers, maxsize=10, page_size=10):
             raw_input("Press Enter to continue [Ctrl-C to abort] ...")
         else:
             break
-    
+
+# ==============
+# DATABASE STUFF
+# ==============
+
+
+def retained_iterable(connection, name, period, tolerance):
+    row = {'name': name, 'period': period*(1.0 + tolerance/100.0) }
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+        FROM raw_readings_t AS r
+        JOIN first_differences_t AS d
+        WHERE r.name    == d.name
+        AND   r.date_id == d.date_id
+        AND   r.time_id == d.time_id
+        AND   d.seq_diff > 1
+        AND   d.seconds_diff < :period
+        AND   r.name == :name
+        ORDER BY r.name ASC, r.tstamp ASC;
+        ''', row)
+    return cursor
+
+
+def previous_iterable(connection, iterable):
+    result = []
+    for srcrow in iterable:
+        row = {'rank': srcrow[0], 'name': srcrow[3]}
+        cursor = connection.cursor()
+        cursor.execute(
+            '''
+            SELECT r.rank, r.rejected, r.tstamp, r.name, r.sequence_number, r.frequency, r.magnitude, r.ambient_temperature, r.sky_temperature, r.signal_strength
+            FROM raw_readings_t AS r
+            WHERE r.rank == :rank - 1
+            AND   r.name == :name
+            AND   r.rejected IS NULL
+            ''', row)
+        temp = cursor.fetchone()
+        if temp is not None:
+            result.append(temp)
+    return result

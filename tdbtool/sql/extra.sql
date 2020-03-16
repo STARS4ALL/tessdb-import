@@ -89,7 +89,8 @@ CREATE TABLE IF NOT EXISTS daily_stats_t
 	median_period       REAL,	          -- median Tx period over a day
 	mean_period         REAL,             -- average Tx period over a day
 	stddev_period       REAL,             -- period stddev over a day
-    quality             REAL,             -- median/stddev over a day
+    min_period          REAL,             -- min period over a day
+    max_period          REAL,             -- min period over a day
     N                   INTEGER NOT NULL, -- sample count where median was computed
 	PRIMARY KEY (name, date_id)
 );

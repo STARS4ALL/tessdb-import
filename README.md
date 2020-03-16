@@ -29,18 +29,6 @@ Installation is done from GitHub:
 * All executables are copied to `/usr/local/bin`
 * The database is located at `/var/dbase/tess.db` by default, although a diffferent path may be specified.
 
-# DATA MODEL
-
-## Dimensional Modelling
-
-The data model follows the [dimensional modelling]
-(https://en.wikipedia.org/wiki/Dimensional_modeling) approach by Ralph Kimball. More references can also be found in [Star Schemas](https://en.wikipedia.org/wiki/Star_schema).
-
-## The data model
-
-The latest version of the data model can be found in **tessdb-server** repository.
-
-![TESS Database Model](https://github.com/STARS4ALL/tessdb/raw/master/doc/tessdb-full.png) 
 
 # COMMANDS
 
@@ -54,4 +42,18 @@ Each subcommand has its own help that you may display by issuing `tess <subcomma
 Example:
 ```
 
+```
+
+# USAGE
+
+Recommended sequence of commands:
+
+```
+* tdbtool input slurp --csv-file <file>
+* tdbtool input differences
+* tdbtool stats daily
+* tdbtool stats global
+* tdbtool show global
+* tdbtool input retained --name <name> --period <T> --tolerance <%> --test
+* tdbtool input retained --name <name> --period <T> --tolerance <%>
 ```

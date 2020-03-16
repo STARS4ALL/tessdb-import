@@ -30,6 +30,7 @@ import traceback
 
 import tdbtool.s4a
 from .      import __version__
+from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
 from .utils import tuple_generator
 
 # ----------------
@@ -37,11 +38,7 @@ from .utils import tuple_generator
 # ----------------
 
 ROWS_PER_COMMIT = 50000
-TSTAMP_FORMAT   = "%Y-%m-%dT%H:%M:%SZ"
 MIN_TIMESTAMP   = '0001-01-01T:00:00:00Z'
-DUP_SEQ_NUMBER  = "Dup Sequence Number"
-SINGLE          = "Single"
-PAIR            = "Pair"
 
 # -----------------------
 # Module global variables
@@ -52,6 +49,7 @@ PAIR            = "Pair"
 # --------------
 # Module classes
 # --------------
+
 class datetime(tdbtool.s4a.datetime):
 
 
@@ -236,6 +234,7 @@ def compute_daily_differences(name, date_id, prev, cur, N):
     finally:
         return row
 
+
 def write_daily_differences(connection, iterable):
     logging.debug("[{0}] Wriiting differences".format(__name__))
     cursor = connection.cursor()
@@ -266,10 +265,24 @@ def mark_duplicated_seqno(connection, row):
         '''
         UPDATE raw_readings_t
         SET    rejected = :reason
-        WHERE  name            == :name
-        AND    date_id         == :date_id
-        AND    time_id         == :time_id
+        WHERE  name    == :name
+        AND    date_id == :date_id
+        AND    time_id == :time_id
         -- AND    sequence_number == :seqno
+         ''', row)
+    # Let the global commit do it
+
+
+def mark_duplicated_seqno2(connection, row):
+    '''Marks a row with duplicated sequence number'''
+    row['reason'] = DUP_SEQ_NUMBER
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        UPDATE raw_readings_t
+        SET    rejected = :reason
+        WHERE  name == :name
+        AND    rank == :rank
          ''', row)
     # Let the global commit do it
 
@@ -292,6 +305,7 @@ def mark_corner_cases(connection, name, date_id, N):
         AND    date_id         == :date_id
          ''', row)
     # Let the global commit do it
+
 
 def mark_duplicated_tstamp(connection, row, file_name):
     '''Marks both rows with duplicated sequence num bers'''
@@ -376,16 +390,23 @@ def input_differences(connection, options):
                     rows = []
     logging.info("[{0}] Done!".format(__name__))
 
-                
 
-
-   
-
-
-   
-
-   
-
-
-
+def input_retained(connection, options):
+    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
+    iterable1 = retained_iterable(connection, options.name, options.period, options.tolerance)
+    iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
+    iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
+    merged = zip(iterable1, iterable2)
+    candidates = zip(iterable1, iterable2)
+    # Verified vcandidatos have the same sequence numbers
+    candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
+    logging.info("[{0}] Found {1} isolated candidates".format(__name__, len(candidates)))
+    logging.debug("[{0}] candidates = {1}".format(__name__, candidates))
+    if options.test:
+        paging(candidates,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=options.limit)
+    else:
+        for row in candidates:
+            mark_duplicated_seqno2(connection, row)
+        connection.commit()
+        logging.info("[{0}] Done!".format(__name__))
 

@@ -62,8 +62,8 @@ TSTAMP_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 # Module global functions
 # -----------------------
 
-def plot1(name):
-	iterable = daily_average_iterable(connection,name)
+def plot_period(name):
+	iterable = daily_average_iterable(connection, name)
 	time, median_period = zip(*iterable)
 	median_period = np.array(median_period, dtype=float)
 	fig, axs = plt.subplots(1, 1, tight_layout=True)
@@ -73,7 +73,7 @@ def plot1(name):
 	axs.hist(median_period, bins=100)
 	plt.show()
 
-def plot2(name):
+def plot_differences(name):
 	fig, axs = plt.subplots(1, 2, sharey=True, tight_layout=True)
 	plt.yscale('log')
 	plt.ylabel('Counts')
