@@ -32,6 +32,7 @@ import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
 from .utils import tuple_generator, previous_iterable, paging
+from .stats import stats_global_iterable
 
 # ----------------
 # Module constants
@@ -344,6 +345,25 @@ def mark_duplicated_tstamp(connection, row, file_name):
         AND    time_id == :time_id
         ''', row2)
     # Let the global commit do it
+
+
+def input_retained_auto(connection):
+    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
+    for name, period in stats_global_iterable(connection):
+        iterable1 = retained_iterable(connection, name, period, 0)
+        iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
+        iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
+        merged = zip(iterable1, iterable2)
+        candidates = zip(iterable1, iterable2)
+        # Verified vcandidatos have the same sequence numbers
+        candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
+        logging.info("[{0}] Found {1} isolated candidates for {2}".format(__name__, len(candidates), name))
+        logging.debug("[{0}] candidates = {1}".format(__name__, candidates, name))
+        for row in candidates:
+            mark_duplicated_seqno2(connection, row)
+    connection.commit()
+    logging.info("[{0}] Done!".format(__name__))
+
 
 # ==============
 # MAIN FUNCTIONS

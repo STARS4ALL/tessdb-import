@@ -42,6 +42,7 @@ from .utils import paging, previous_iterable
 # -----------------------
 
 def stats_global_auto(connection):
+    logging.info("[{0}] computing global period statistics for all photometers".format(__name__))
     row = {'method': "Automatic"}
     cursor = connection.cursor()
     cursor.execute(
@@ -51,7 +52,7 @@ def stats_global_auto(connection):
         FROM  daily_stats_t
         GROUP BY name
         ''', row)
-    connection.commit()
+    logging.info("[{0}] Done!".format(__name__))
 
 
 def stats_global_manual(connection, name, period):
@@ -62,8 +63,17 @@ def stats_global_manual(connection, name, period):
         INSERT OR REPLACE INTO global_stats_t(name, median_period, method, N)
         VALUES (:name, :period, :method, :N)
         ''',row)
-    connection.commit()
 
+
+def stats_global_iterable(connection):
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT name, median_period
+        FROM   global_stats_t
+        ORDER BY NAME ASC
+        ''')
+    return cursor
 
     
 # ==============
@@ -89,9 +99,11 @@ def stats_global(connection, options):
     if options.name is not None:
         if options.period is not None:
             stats_global_manual(connection, options.name, options.period)
+            connection.commit()
         else:
             logging.error("[{0}] a period must be specified with --period".format(__name__))
     else:
         stats_global_auto(connection)
+        connection.commit()
     logging.info("[{0}] Done!".format(__name__))
 

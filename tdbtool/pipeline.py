@@ -33,7 +33,7 @@ from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
 from .utils import paging, previous_iterable
 
-from .input import input_slurp, input_differences
+from .input import input_slurp, input_differences, input_retained_auto
 from .stats import stats_daily, stats_global_auto
 
 # ----------------
@@ -59,3 +59,5 @@ def pipeline_stage1(connection, options):
     stats_daily(connection, options)
     logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 4 ===============".format(__name__))
     stats_global_auto(connection)
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 5 ===============".format(__name__))
+    input_retained_auto(connection)
