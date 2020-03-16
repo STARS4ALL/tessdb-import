@@ -292,9 +292,9 @@ def mark_duplicated_seqno(connection, row):
     # Let the global commit do it
 
 
-def mark_duplicated_seqno2(connection, row):
+def mark_duplicated_seqno2(connection, srcrow):
     '''Marks a row with duplicated sequence number'''
-    row['reason'] = DUP_SEQ_NUMBER
+    row = {'name': srcrow[3], 'rank': srcrow[0], 'reason': DUP_SEQ_NUMBER}
     cursor = connection.cursor()
     cursor.execute(
         '''
