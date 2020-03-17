@@ -31,7 +31,7 @@ import traceback
 import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
-from .utils import tuple_generator, previous_iterable, paging
+from .utils import shift_generator, previous_iterable, paging
 from .stats import stats_global_iterable
 
 # ----------------
@@ -256,7 +256,7 @@ def compute_daily_differences(name, date_id, prev, cur, N):
 
 
 def write_daily_differences(connection, iterable):
-    logging.debug("[{0}] Wriiting differences".format(__name__))
+    logging.debug("[{0}] Wriiting differences for {1} rows".format(__name__, len(iterable)))
     cursor = connection.cursor()
     cursor.executemany(
         '''
@@ -404,7 +404,6 @@ def input_slurp(connection, options):
 
                 
 def input_differences(connection, options):
-    cursor = connection.cursor()
     logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
     rows = []
     for group in name_and_date_iterable(connection):
@@ -413,20 +412,22 @@ def input_differences(connection, options):
         N       = group[2]
         mark_corner_cases(connection, name, date_id, N)
         logging.info("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
-        for points in tuple_generator(daily_iterable(connection, name, date_id), 2):
+        for points in shift_generator(daily_iterable(connection, name, date_id), 2):
             if not all(points):
                 continue
-            else:
-                prev, cur = points
-                if len(rows) < ROWS_PER_COMMIT:
-                    row = compute_daily_differences(name, date_id, prev, cur, N)
-                    if 'period' in row:
-                        rows.append(row)
-                    else:
-                        mark_duplicated_seqno(connection, row)
+            prev, cur = points
+            if len(rows) < ROWS_PER_COMMIT:
+                row = compute_daily_differences(name, date_id, prev, cur, N)
+                if 'period' in row:
+                    rows.append(row)
                 else:
-                    write_daily_differences(connection, rows)
-                    rows = []
+                    mark_duplicated_seqno(connection, row)
+            else:
+                write_daily_differences(connection, rows)
+                rows = []
+    # Write trailing rows
+    if len(rows):
+        write_daily_differences(connection, rows)
     logging.info("[{0}] Done!".format(__name__))
 
 

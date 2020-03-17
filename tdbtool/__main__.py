@@ -33,6 +33,7 @@ from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated
 from .plot  import plot_period, plot_differences
 from .pipeline import pipeline_stage1
+from .daylight import daylight_detect
 
 
 # ----------------
@@ -100,7 +101,8 @@ def createParser():
     parser_stats = subparser.add_parser('stats', help='plot commands')
     parser_plot  = subparser.add_parser('plot',  help='plot commands')
     parser_show  = subparser.add_parser('show',  help='show commands')
-    parser_pipe  = subparser.add_parser('pipeline',  help='pipeline commands')
+    parser_day   = subparser.add_parser('daylight', help='daylight commands')
+    parser_pipe  = subparser.add_parser('pipeline', help='pipeline commands')
 
     # ------------------------------------------
     # Create second level parsers for 'input'
@@ -147,6 +149,15 @@ def createParser():
     pdi.add_argument('--start-date', type=mkdate, metavar="<YYYY-MM-DD>", help='Optional start date')
     pdi.add_argument('--end-date',   type=mkdate, metavar="<YYYY-MM-DD>", help='Optional end date')
     pdi.add_argument('--bins',  type=int, default=20, metavar="<N>", help='Number of histogram bins')
+
+    # ------------------------------------------
+    # Create second level parsers for 'daylight'
+    # ------------------------------------------
+
+    subparser = parser_day.add_subparsers(dest='subcommand')
+    pdd = subparser.add_parser('detect', help='Detect daylight readings')
+    pdd.add_argument('--name', type=str, help='Optional TESS-W name')
+
 
     # ------------------------------------------
     # Create second level parsers for 'pipeline'

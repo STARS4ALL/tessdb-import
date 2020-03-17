@@ -78,8 +78,8 @@ def percent(n):
    n = min(n,100)
    return n
 
-def tuple_generator(iterable, N):
-    '''Partitions a very long iterable in tuples of size N'''
+def shift_generator(iterable, N):
+    '''Partitions a very long iterable in tuples of size N shifting one item at every ietration'''
     q = collections.deque((None for x in range(0,N)), N)
     for current in iterable:
         q.append(current)

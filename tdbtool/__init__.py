@@ -26,6 +26,7 @@ TSTAMP_FORMAT   = "%Y-%m-%dT%H:%M:%SZ"
 DUP_SEQ_NUMBER  = "Dup Sequence Number"
 SINGLE          = "Single"
 PAIR            = "Pair"
+DAYLIGHT        = "Daylight"
 
 # -----------------------
 # Module global variables
