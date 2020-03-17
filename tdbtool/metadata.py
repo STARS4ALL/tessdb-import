@@ -35,6 +35,8 @@ from .utils import open_database
 
 ROWS_PER_COMMIT = 50000
 
+FLAGS_SUBSCRIBER_IMPORTED = 2
+
 # -----------------------
 # Module global variables
 # -----------------------
@@ -45,7 +47,26 @@ ROWS_PER_COMMIT = 50000
 # ==============
 
 def metadata_flags(connection, options):
-    logging.info("[{0}] adding flags metadata".format(__name__))
+    logging.info("[{0}] adding flags metadata to 0x{1:02X}".format(__name__, FLAGS_SUBSCRIBER_IMPORTED))
+    cursor = connection.cursor()
+    if options.name is None:
+        row = {'value': FLAGS_SUBSCRIBER_IMPORTED}
+        cursor.execute(
+            '''
+            UPDATE raw_readings_t
+            SET units_id = :value
+            WHERE rejected is NULL
+            ''', row)
+    else:
+        row = {'name': options.name, 'value': FLAGS_SUBSCRIBER_IMPORTED}
+        cursor.execute(
+             '''
+            UPDATE raw_readings_t
+            SET units_id = :value
+            WHERE rejected is NULL
+            AND name == :name
+            ''', row)
+    connection.commit()
     logging.info("[{0}] Done!".format(__name__))
 
 def metadata_location(connection, options):

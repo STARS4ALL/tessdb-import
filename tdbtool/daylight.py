@@ -87,7 +87,7 @@ def candidates_iterable(connection, name):
 
 
 def mark_daylight(connection, iterable):
-    logging.info("[{0}] Marking daylight for {1} rows".format(__name__, len(iterable)))
+    logging.debug("[{0}] Marking daylight for {1} rows".format(__name__, len(iterable)))
     cursor = connection.cursor()
     cursor.executemany(
         '''

@@ -32,7 +32,7 @@ from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated, show_count
 from .plot  import plot_period, plot_differences
-from .pipeline import pipeline_stage1
+from .pipeline import pipeline_stage1, pipeline_stage2, pipeline_full
 from .daylight import daylight_detect
 from .metadata import metadata_flags, metadata_location, metadata_instrument
 
@@ -161,6 +161,12 @@ def createParser():
     subparser = parser_pipe.add_subparsers(dest='subcommand')
     pp1 = subparser.add_parser('stage1', help='Stage 1 Pipeline')
     pp1.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    
+    pp2 = subparser.add_parser('stage2', help='Stage 2 Pipeline')
+    pp2.add_argument('--name', type=str, help='Optional TESS-W name')
+   
+    ppf = subparser.add_parser('full', help='Full Pipeline')
+    ppf.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
 
     # ------------------------------------------
     # Create second level parsers for 'metadata'

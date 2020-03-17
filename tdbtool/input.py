@@ -404,14 +404,14 @@ def input_slurp(connection, options):
 
                 
 def input_differences(connection, options):
-    logging.info("[{0}] Starting Tx period stats calculation".format(__name__))
+    logging.info("[{0}] Computing differences".format(__name__))
     rows = []
     for group in name_and_date_iterable(connection):
         name    = group[0]
         date_id = group[1]
         N       = group[2]
         mark_corner_cases(connection, name, date_id, N)
-        logging.info("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
+        logging.debug("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
         for points in shift_generator(daily_iterable(connection, name, date_id), 2):
             if not all(points):
                 continue
