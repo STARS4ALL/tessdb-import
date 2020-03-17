@@ -30,7 +30,7 @@ import traceback
 
 import tdbtool.s4a
 from .      import __version__
-from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
+from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, DAYLIGHT, TSTAMP_FORMAT
 from .utils import paging, previous_iterable
 
 # ----------------
@@ -105,6 +105,68 @@ def show_duplicated_until_date(connection, options):
         AND   tstamp <= :endd
         ''', row)
     return cursor
+
+
+
+def show_count_valid(connection, name):
+    cursor = connection.cursor()
+    if name is None:
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE rejected IS NULL
+            GROUP BY name
+            ''')
+    else:
+        row = {'name': name }
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE name == :name
+            AND WHERE rejected IS NULL
+            ''', row)
+    paging(cursor,["Name", "Count"])
+
+
+def show_count_reason(connection, name, reason):
+    cursor = connection.cursor()
+    if name is None:
+        row = {'reason': reason }
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE rejected == :reason
+            GROUP BY name
+            ''',row)
+    else:
+        row = {'name': name, 'reason': reason }
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE name == :name
+            AND rejected == :reason
+            ''', row)
+    return cursor
+
+def show_count_duplicated(connection, name):
+    iterable = show_count_reason(connection, name, DUP_SEQ_NUMBER)
+    paging(iterable,["Name", "Count"])
+
+
+def show_count_single(connection, name):
+    iterable = show_count_reason(connection, name, SINGLE)
+    paging(iterable,["Name", "Count"])
+
+
+def show_count_pairs(connection, name):
+    iterable = show_count_reason(connection, name, PAIR)
+    paging(iterable,["Name", "Count"])
+
+
+def show_count_daylight(connection, name):
+    iterable = show_count_reason(connection, name, DAYLIGHT)
+    paging(iterable,["Name", "Count"])
+
 
 # ==============
 # MAIN FUNCTIONS
@@ -194,3 +256,19 @@ def show_around(connection, options):
         AND   rank  BETWEEN :rank - :width AND :rank + :width
         ''', row)
     paging(cursor,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=2*options.width+1)
+
+
+def show_count(connection, options):
+    if options.valid:
+        show_count_valid(connection, options.name)
+    elif options.duplicated:
+        show_count_duplicated(connection, options.name)
+    elif options.single:
+        show_count_single(connection, options.name)
+    elif options.pairs:
+        show_count_pairs(connection, options.name)
+    elif options.daylight:
+        show_count_daylight(connection, options.name)
+    else:
+        pass
+  

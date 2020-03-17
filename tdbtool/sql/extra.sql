@@ -20,6 +20,10 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     longitude           REAL,
     latitude            REAL,
     height              REAL,
+    --- These are filled in later in the process
+    tess_id             INTEGER,
+    location_id         INTEGER,
+    units_id            INTEGER,
     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
     line_number         INTEGER NOT NULL, -- original line number where dupliated appear

@@ -30,7 +30,7 @@ from . import __version__
 from .utils import utf8, mkdate, percent
 from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
-from .show  import show_global, show_daily, show_differences, show_duplicated
+from .show  import show_global, show_daily, show_differences, show_duplicated, show_count
 from .plot  import plot_period, plot_differences
 from .pipeline import pipeline_stage1
 from .daylight import daylight_detect
@@ -194,6 +194,15 @@ def createParser():
     sha.add_argument('--name', required=True, type=str, help='TESS-W name to set the global period to')
     sha.add_argument('--rank', required=True, type=int, metavar='<N>', help='rank order')
     sha.add_argument('--width', type=int, default= 3, metavar='<N>', help='display width')
+
+    shc = subparser.add_parser('count', help='show counts')
+    shc.add_argument('--name', type=str, help='Optional TESS-W name')
+    shcex = shc.add_mutually_exclusive_group(required=True)
+    shcex.add_argument('--valid', action="store_true", help='Number of valid readings')
+    shcex.add_argument('--duplicated', action="store_true", help='Number of duplicated sequence numbers')
+    shcex.add_argument('--single', action="store_true", help='Number of single (per day) readings')
+    shcex.add_argument('--pairs',  action="store_true", help='Number of pairs (per day) readings')
+    shcex.add_argument('--daylight',  action="store_true", help='Number daylight readings')
 
     return parser
 
