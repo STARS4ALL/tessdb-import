@@ -47,9 +47,9 @@ FLAGS_SUBSCRIBER_IMPORTED = 2
 # ==============
 
 def metadata_flags(connection, options):
-    logging.info("[{0}] adding flags metadata to 0x{1:02X}".format(__name__, FLAGS_SUBSCRIBER_IMPORTED))
     cursor = connection.cursor()
     if options.name is None:
+        logging.info("[{0}] setting flags metadata for all = 0x{1:02X}".format(__name__, FLAGS_SUBSCRIBER_IMPORTED))
         row = {'value': FLAGS_SUBSCRIBER_IMPORTED}
         cursor.execute(
             '''
@@ -58,6 +58,7 @@ def metadata_flags(connection, options):
             WHERE rejected is NULL
             ''', row)
     else:
+        logging.info("[{0}] setting flags metadata to {1} = 0x{2:02X}".format(__name__, options.name, FLAGS_SUBSCRIBER_IMPORTED))
         row = {'name': options.name, 'value': FLAGS_SUBSCRIBER_IMPORTED}
         cursor.execute(
              '''
