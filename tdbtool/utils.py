@@ -12,8 +12,11 @@
 # System wide imports
 # -------------------
 
+import os
+import os.path
 import sys
 import collections
+import sqlite3
 
 # Python3 catch
 try:
@@ -145,6 +148,12 @@ def paging(iterable, headers, maxsize=10, page_size=10):
 # ==============
 # DATABASE STUFF
 # ==============
+
+
+def open_database(dbase_path):
+    if not os.path.exists(dbase_path):
+       raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
+    return sqlite3.connect(dbase_path)
 
 
 def previous_iterable(connection, iterable):

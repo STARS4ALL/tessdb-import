@@ -27,14 +27,14 @@ from pkg_resources import resource_filename
 
 from . import __version__
 
-from .utils import utf8, mkdate, percent
+from .utils import utf8, mkdate, percent, open_database
 from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated, show_count
 from .plot  import plot_period, plot_differences
 from .pipeline import pipeline_stage1
 from .daylight import daylight_detect
-
+from .metadata import metadata_flags, metadata_location, metadata_instrument
 
 # ----------------
 # Module constants
@@ -53,12 +53,6 @@ DEFAULT_SQLITE_MODULE = "/usr/local/lib/libsqlitefunctions.so"
 # -----------------------
 
 
-def open_database(dbase_path):
-    if not os.path.exists(dbase_path):
-       raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
-    logging.info("[{0}] Opening database {1}".format(__name__, dbase_path))
-    return sqlite3.connect(dbase_path)
-
 
 def configureLogging(options):
     if options.verbose:
@@ -70,13 +64,13 @@ def configureLogging(options):
     logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=level)
 
 
-def create_datamodel(options, conn1):
+def create_datamodel(options, connection):
     datamodel_path = resource_filename(__name__, 'sql/extra.sql')
     with open(datamodel_path) as f: 
         lines = f.readlines() 
     script = ''.join(lines)
     logging.info("[{0}] Creating data model from {1}".format(__name__, datamodel_path))
-    conn1.executescript(script)
+    connection.executescript(script)
 
 
 def createParser():
@@ -103,6 +97,7 @@ def createParser():
     parser_show  = subparser.add_parser('show',  help='show commands')
     parser_day   = subparser.add_parser('daylight', help='daylight commands')
     parser_pipe  = subparser.add_parser('pipeline', help='pipeline commands')
+    parser_meta  = subparser.add_parser('metadata', help='metadata commands')
 
     # ------------------------------------------
     # Create second level parsers for 'input'
@@ -168,6 +163,21 @@ def createParser():
     pp1.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
 
     # ------------------------------------------
+    # Create second level parsers for 'metadata'
+    # ------------------------------------------
+
+    subparser = parser_meta.add_subparsers(dest='subcommand')
+    pmf = subparser.add_parser('flags', help='Add flags metadata to readings')
+    pmf.add_argument('--name', type=str, help='Optional TESS-W name')
+
+    pml = subparser.add_parser('location', help='Add location metadata to readings')
+    pml.add_argument('--name', type=str, help='Optional TESS-W name')
+
+    pmi = subparser.add_parser('instrument', help='Add instrument metadata to readings')
+    pmi.add_argument('--name', type=str, help='Optional TESS-W name')
+
+
+    # ------------------------------------------
     # Create second level parsers for 'show'
     # ------------------------------------------
 
@@ -207,13 +217,6 @@ def createParser():
     return parser
 
 
-def open_database(dbase_path):
-    if not os.path.exists(dbase_path):
-       raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
-    logging.info("[{0}] Opening database {1}".format(__name__, dbase_path))
-    return sqlite3.connect(dbase_path)
-
-
 def configureLogging(options):
     if options.verbose:
         level = logging.DEBUG
@@ -240,16 +243,16 @@ def main():
     try:
         options = createParser().parse_args(sys.argv[1:])
         configureLogging(options)
-        conn1 = open_database(options.extra_dbase)
-        conn1.enable_load_extension(True)
-        conn1.load_extension(DEFAULT_SQLITE_MODULE)
-        conn2 = open_database(options.dbase)
-        create_datamodel(conn1, options)
+        logging.info("[{0}] Opening database {1}".format(__name__,options.extra_dbase))
+        connection = open_database(options.extra_dbase)
+        connection.enable_load_extension(True)
+        connection.load_extension(DEFAULT_SQLITE_MODULE)
+        create_datamodel(connection, options)
         command    = options.command
         subcommand = options.subcommand
         # Call the function dynamically
         func = command + '_' + subcommand
-        globals()[func](conn1, options)
+        globals()[func](connection, options)
     except KeyboardInterrupt as e:
         logging.error("[{0}] Interrupted by user ".format(__name__))
     except Exception as e:
