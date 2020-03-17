@@ -118,7 +118,7 @@ def daylight_detect_by_name(connection, name):
                 mark_daylight(connection, rows)
                 rows = []
     if len(rows):
-         mark_daylight(connection, rows)
+        mark_daylight(connection, rows)
     logging.info("[{0}] Done!".format(__name__))
 
 
