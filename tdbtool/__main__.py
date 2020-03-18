@@ -115,7 +115,7 @@ def createParser():
     isr = subparser.add_parser('retained', help='fix isolated out retained values')
     isr.add_argument('--name', type=str, help='Optional TESS-W name')
     isr.add_argument('--test', action='store_true', help='Test only, do not update candidates')
-    isr.add_argument('--limit',  type=int, default=10, metavar="<N>", help='Optional limit to display in test mode')
+    isr.add_argument('--limit', type=int, default=10, metavar="<N>", help='Optional limit to display in test mode')
 
     # ------------------------------------------
     # Create second level parsers for 'stats'

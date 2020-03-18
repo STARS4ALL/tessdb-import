@@ -358,7 +358,7 @@ def mark_duplicated_tstamp(connection, row, file_name):
     # Let the global commit do it
 
 
-def stats_global_iterable(connection, name):
+def global_period_iterable(connection, name):
     cursor = connection.cursor()
     if name is None:
         cursor.execute(
@@ -379,10 +379,10 @@ def stats_global_iterable(connection, name):
     return cursor
 
 
-def input_retained_auto(connection, name):
+def input_retained_auto(connection, options):
     logging.info("[{0}] Detecting isolated retained readings".format(__name__))
-    for name, period in stats_global_iterable(connection, name):
-        iterable1 = retained_iterable(connection, name, period, 0)
+    for name, period in global_period_iterable(connection, options.name):
+        iterable1 = retained_iterable(connection, name, period)
         iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
         iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
         merged = zip(iterable1, iterable2)
@@ -395,27 +395,6 @@ def input_retained_auto(connection, name):
             mark_duplicated_seqno2(connection, row)
     connection.commit()
     logging.info("[{0}] Done!".format(__name__))
-
-
-def input_retained_named(connection, options):
-    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
-    iterable1 = retained_iterable(connection, options.name, options.period)
-    iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
-    iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
-    merged = zip(iterable1, iterable2)
-    candidates = zip(iterable1, iterable2)
-    # Verified vcandidatos have the same sequence numbers
-    candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
-    logging.info("[{0}] Found {1} isolated candidates".format(__name__, len(candidates)))
-    logging.debug("[{0}] candidates = {1}".format(__name__, candidates))
-    if options.test:
-        paging(candidates,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=options.limit)
-    else:
-        for row in candidates:
-            mark_duplicated_seqno2(connection, row)
-        connection.commit()
-        logging.info("[{0}] Done!".format(__name__))
-
 
 
 # ==============
@@ -485,5 +464,5 @@ def input_differences(connection, options):
 
 
 def input_retained(connection, options):
-    input_retained_auto(connection, options.name)
+    input_retained_auto(connection, options)
     
