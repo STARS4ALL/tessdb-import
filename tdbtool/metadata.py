@@ -37,10 +37,17 @@ ROWS_PER_COMMIT = 50000
 
 FLAGS_SUBSCRIBER_IMPORTED = 2
 
+SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
+
 # -----------------------
 # Module global variables
 # -----------------------
 
+def open_reference_database(path):
+    connection = open_database(path)
+    connection.enable_load_extension(True)
+    connection.load_extension(SQLITE_REGEXP_MODULE)
+    return connection
 
 # ==============
 # MAIN FUNCTIONS
@@ -72,13 +79,13 @@ def metadata_flags(connection, options):
 
 def metadata_location(connection, options):
     logging.info("[{0}] adding location metadata".format(__name__))
-    logging.info("[{0}] Opening database {1}".format(__name__,options.dbase))
-    connection2 = open_database(options.dbase)
+    logging.info("[{0}] Opening reference database {1}".format(__name__,options.dbase))
+    connection2 = open_reference_database(options.dbase)
     logging.info("[{0}] Done!".format(__name__))
  
 def metadata_instrument(connection, options):
     logging.info("[{0}] adding instrument metadata".format(__name__))
-    logging.info("[{0}] Opening database {1}".format(__name__, options.dbase))
-    connection2 = open_database(options.dbase)
+    logging.info("[{0}] Opening reference database {1}".format(__name__, options.dbase))
+    connection2 = open_reference_database(options.dbase)
     logging.info("[{0}] Done!".format(__name__))
 

@@ -41,21 +41,34 @@ from .utils import paging, previous_iterable
 # Module global variables
 # -----------------------
 
-def stats_global_auto(connection):
-    logging.info("[{0}] computing global period statistics for all photometers".format(__name__))
-    row = {'method': "Automatic"}
+def stats_global_auto(connection, name):
     cursor = connection.cursor()
-    cursor.execute(
-        '''
-        INSERT OR REPLACE INTO global_stats_t(name, median_period, method, N)
-        SELECT name, MEDIAN(median_period), :method, COUNT(*)
-        FROM  daily_stats_t
-        GROUP BY name
-        ''', row)
+    if name is None:
+        logging.info("[{0}] computing global period statistics for all photometers".format(__name__))
+        row = {'method': "Automatic"}
+        cursor.execute(
+            '''
+            INSERT OR REPLACE INTO global_stats_t(name, median_period, method, N)
+            SELECT name, MEDIAN(median_period), :method, COUNT(*)
+            FROM  daily_stats_t
+            GROUP BY name
+            ''', row)
+    else:
+        logging.info("[{0}] computing global period statistics for {1} photometer".format(__name__, name))
+        row = {'name': name, 'method': "Automatic"}
+        cursor.execute(
+            '''
+            INSERT OR REPLACE INTO global_stats_t(name, median_period, method, N)
+            SELECT name, MEDIAN(median_period), :method, COUNT(*)
+            FROM  daily_stats_t
+            WHERE name == :name
+            ''', row)
+    connection.commit()
     logging.info("[{0}] Done!".format(__name__))
 
 
 def stats_global_manual(connection, name, period):
+    logging.info("[{0}] setting global period statistics to {1} for {2} photometer".format(__name__, period, name))
     row = {'name': name, 'period': period, 'method': "Manual", 'N':0}
     cursor = connection.cursor()
     cursor.execute(
@@ -63,17 +76,8 @@ def stats_global_manual(connection, name, period):
         INSERT OR REPLACE INTO global_stats_t(name, median_period, method, N)
         VALUES (:name, :period, :method, :N)
         ''',row)
-
-
-def stats_global_iterable(connection):
-    cursor = connection.cursor()
-    cursor.execute(
-        '''
-        SELECT name, median_period
-        FROM   global_stats_t
-        ORDER BY NAME ASC
-        ''')
-    return cursor
+    connection.commit()
+    logging.info("[{0}] Done!".format(__name__))
 
     
 # ==============
@@ -81,29 +85,30 @@ def stats_global_iterable(connection):
 # ==============
 
 def stats_daily(connection, options):
-    logging.info("[{0}] computing daily period statistics".format(__name__))
     cursor = connection.cursor()
-    cursor.execute(
-        '''
-        INSERT OR REPLACE INTO daily_stats_t(name, date_id, mean_period, median_period, stddev_period, N, min_period, max_period)
-        SELECT name, date_id, AVG(delta_T), MEDIAN(delta_T), STDEV(delta_T), COUNT(*), MIN(delta_T), MAX(delta_T)
-        FROM  first_differences_t
-        GROUP BY name, date_id
-        ''')
+    if options.name is None:
+        logging.info("[{0}] computing daily period statistics".format(__name__))
+        cursor.execute(
+            '''
+            INSERT OR REPLACE INTO daily_stats_t(name, date_id, mean_period, median_period, stddev_period, N, min_period, max_period)
+            SELECT name, date_id, AVG(delta_T), MEDIAN(delta_T), STDEV(delta_T), COUNT(*), MIN(delta_T), MAX(delta_T)
+            FROM  first_differences_t
+            GROUP BY name, date_id
+            ''')
+    else:
+        logging.info("[{0}] computing daily period statistics for {1}".format(__name__, options.name))
+        row = {'name': options.name }
+        cursor.execute(
+            '''
+            INSERT OR REPLACE INTO daily_stats_t(name, date_id, mean_period, median_period, stddev_period, N, min_period, max_period)
+            SELECT name, date_id, AVG(delta_T), MEDIAN(delta_T), STDEV(delta_T), COUNT(*), MIN(delta_T), MAX(delta_T)
+            FROM  first_differences_t
+            WHERE name == :name
+            ''', row)
     connection.commit()
     logging.info("[{0}] Done!".format(__name__))
 
 
-def stats_global(connection, options):
-    logging.info("[{0}] computing global period statistics".format(__name__))
-    if options.name is not None:
-        if options.period is not None:
-            stats_global_manual(connection, options.name, options.period)
-            connection.commit()
-        else:
-            logging.error("[{0}] a period must be specified with --period".format(__name__))
-    else:
-        stats_global_auto(connection)
-        connection.commit()
-    logging.info("[{0}] Done!".format(__name__))
 
+def stats_global(connection, options):
+    stats_global_auto(connection, options.name)

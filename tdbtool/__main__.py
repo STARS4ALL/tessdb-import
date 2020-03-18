@@ -42,7 +42,8 @@ from .metadata import metadata_flags, metadata_location, metadata_instrument
 
 DEFAULT_DBASE = "/var/dbase/tess.db"
 EXTRA_DBASE   = "/var/dbase/extra.db"
-DEFAULT_SQLITE_MODULE = "/usr/local/lib/libsqlitefunctions.so"
+SQLITE_MATH_MODULE   = "/usr/local/lib/libsqlitefunctions.so"
+SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
 
 # -----------------------
 # Module global variables
@@ -106,15 +107,15 @@ def createParser():
     subparser = parser_input.add_subparsers(dest='subcommand')
     isl = subparser.add_parser('slurp', help='ingest input file')
     isl.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    isl.add_argument('--name', type=str, help='Optional TESS-W name to filter')
 
     ist = subparser.add_parser('differences', help='compute differences between consecutive readings')
+    ist.add_argument('--name', type=str, help='Optional TESS-W name to filter')
 
     isr = subparser.add_parser('retained', help='fix isolated out retained values')
-    isr.add_argument('--name', required=True, type=str, help='TESS-W name to set the global period to')
-    isr.add_argument('--period', required=True, type=float, metavar='<T>', help='period for a given TESS-W')
-    isr.add_argument('--tolerance', type=percent, default=0, metavar='%', help='period tolerance to add')
-    isr.add_argument('--test', action='store_true', help='period tolerance to add')
-    isr.add_argument('--limit',  type=int, default=10, metavar="<N>", help='Optional limit')
+    isr.add_argument('--name', type=str, help='Optional TESS-W name')
+    isr.add_argument('--test', action='store_true', help='Test only, do not update candidates')
+    isr.add_argument('--limit',  type=int, default=10, metavar="<N>", help='Optional limit to display in test mode')
 
     # ------------------------------------------
     # Create second level parsers for 'stats'
@@ -122,9 +123,10 @@ def createParser():
   
     subparser = parser_stats.add_subparsers(dest='subcommand')
     sdy = subparser.add_parser('daily',  help='compute daily period statistics')
+    sdy.add_argument('--name', type=str, help='Optional TESS-W name')
     
     sgl = subparser.add_parser('global', help='compute global period statistics')
-    sgl.add_argument('--name', type=str, help='TESS-W name to set the global period to')
+    sgl.add_argument('--name', type=str, help='Optional TESS-W name')
     sgl.add_argument('--period', type=float, metavar='<T>', help='Set global period for a given TESS-W')
     
     # ------------------------------------------
@@ -161,12 +163,14 @@ def createParser():
     subparser = parser_pipe.add_subparsers(dest='subcommand')
     pp1 = subparser.add_parser('stage1', help='Stage 1 Pipeline')
     pp1.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    pp1.add_argument('--name', type=str, help='Optional TESS-W name')
     
     pp2 = subparser.add_parser('stage2', help='Stage 2 Pipeline')
     pp2.add_argument('--name', type=str, help='Optional TESS-W name')
    
     ppf = subparser.add_parser('full', help='Full Pipeline')
     ppf.add_argument('--csv-file', required=True, type=str, help='CSV file to ingest')
+    ppf.add_argument('--name', type=str, help='Optional TESS-W name')
 
     # ------------------------------------------
     # Create second level parsers for 'metadata'
@@ -252,7 +256,8 @@ def main():
         logging.info("[{0}] Opening database {1}".format(__name__,options.extra_dbase))
         connection = open_database(options.extra_dbase)
         connection.enable_load_extension(True)
-        connection.load_extension(DEFAULT_SQLITE_MODULE)
+        connection.load_extension(SQLITE_MATH_MODULE)
+        connection.load_extension(SQLITE_REGEXP_MODULE)
         create_datamodel(connection, options)
         command    = options.command
         subcommand = options.subcommand

@@ -32,7 +32,6 @@ import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
 from .utils import shift_generator, previous_iterable, paging
-from .stats import stats_global_iterable
 
 # ----------------
 # Module constants
@@ -157,13 +156,15 @@ class CounterFactory(object):
 # Module global functions
 # -----------------------
 
-def csv_generator(filepath, factory):
+def csv_generator(filepath, factory, name):
     '''An iterator that reads csv line by line and keeps memory usage down'''
     with open(filepath, "r") as csvfile:
         datareader = csv.reader(csvfile,delimiter=';')
         dummy = next(datareader)  # drops the header row
         line_number = 2
         for srcrow in datareader:
+            if name is not None and name != srcrow[1]:
+                continue
             row = []
             dt = datetime.from_iso8601(srcrow[0], TSTAMP_FORMAT)
             #dateid, timeid, seconds = datetime.from_iso8601(srcrow[0],TSTAMP_FORMAT).to_dbase_ids()
@@ -190,8 +191,8 @@ def csv_generator(filepath, factory):
             yield row
 
 
-def retained_iterable(connection, name, period, tolerance):
-    row = {'name': name, 'period': period*(1.0 + tolerance/100.0) }
+def retained_iterable(connection, name, period):
+    row = {'name': name, 'period': period }
     cursor = connection.cursor()
     cursor.execute(
         '''
@@ -209,15 +210,25 @@ def retained_iterable(connection, name, period, tolerance):
     return cursor
 
 
-def name_and_date_iterable(connection):
+def name_and_date_iterable(connection, name):
     cursor = connection.cursor()
-    cursor.execute(
-        '''
-        SELECT  name, date_id, count(*)
-        FROM    raw_readings_t
-        GROUP BY name, date_id
-        ORDER BY name ASC, date_id ASC
-        ''')
+    if name is None:
+        cursor.execute(
+            '''
+            SELECT  name, date_id, count(*)
+            FROM    raw_readings_t
+            GROUP BY name, date_id
+            ORDER BY name ASC, date_id ASC
+            ''')
+    else:
+        row = {'name': name}
+        cursor.execute(
+            '''
+            SELECT  name, date_id, count(*)
+            FROM    raw_readings_t
+            WHERE  name == :name
+            ORDER BY name ASC, date_id ASC
+            ''', row)
     return cursor   # return Cursor as an iterable
 
 
@@ -347,9 +358,30 @@ def mark_duplicated_tstamp(connection, row, file_name):
     # Let the global commit do it
 
 
-def input_retained_auto(connection):
+def stats_global_iterable(connection, name):
+    cursor = connection.cursor()
+    if name is None:
+        cursor.execute(
+            '''
+            SELECT name, median_period
+            FROM   global_stats_t
+            ORDER BY name ASC
+            ''')
+    else:
+        row = {'name': name}
+        cursor.execute(
+            '''
+            SELECT name, median_period
+            FROM   global_stats_t
+            WHERE name == :name
+            ORDER BY NAME ASC
+            ''', row)
+    return cursor
+
+
+def input_retained_auto(connection, name):
     logging.info("[{0}] Detecting isolated retained readings".format(__name__))
-    for name, period in stats_global_iterable(connection):
+    for name, period in stats_global_iterable(connection, name):
         iterable1 = retained_iterable(connection, name, period, 0)
         iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
         iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
@@ -365,6 +397,27 @@ def input_retained_auto(connection):
     logging.info("[{0}] Done!".format(__name__))
 
 
+def input_retained_named(connection, options):
+    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
+    iterable1 = retained_iterable(connection, options.name, options.period)
+    iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
+    iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
+    merged = zip(iterable1, iterable2)
+    candidates = zip(iterable1, iterable2)
+    # Verified vcandidatos have the same sequence numbers
+    candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
+    logging.info("[{0}] Found {1} isolated candidates".format(__name__, len(candidates)))
+    logging.debug("[{0}] candidates = {1}".format(__name__, candidates))
+    if options.test:
+        paging(candidates,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=options.limit)
+    else:
+        for row in candidates:
+            mark_duplicated_seqno2(connection, row)
+        connection.commit()
+        logging.info("[{0}] Done!".format(__name__))
+
+
+
 # ==============
 # MAIN FUNCTIONS
 # ==============
@@ -375,7 +428,7 @@ def input_slurp(connection, options):
     duplicates = {}
     cursor = connection.cursor()
     factory = CounterFactory(connection)
-    for row in csv_generator(options.csv_file, factory):
+    for row in csv_generator(options.csv_file, factory, options.name):
         counter = factory.build(row[3])
         if row[11] < counter.max_tstamp():
             # Skip old data
@@ -406,7 +459,7 @@ def input_slurp(connection, options):
 def input_differences(connection, options):
     logging.info("[{0}] Computing differences".format(__name__))
     rows = []
-    for group in name_and_date_iterable(connection):
+    for group in name_and_date_iterable(connection, options.name):
         name    = group[0]
         date_id = group[1]
         N       = group[2]
@@ -432,21 +485,5 @@ def input_differences(connection, options):
 
 
 def input_retained(connection, options):
-    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
-    iterable1 = retained_iterable(connection, options.name, options.period, options.tolerance)
-    iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
-    iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
-    merged = zip(iterable1, iterable2)
-    candidates = zip(iterable1, iterable2)
-    # Verified vcandidatos have the same sequence numbers
-    candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
-    logging.info("[{0}] Found {1} isolated candidates".format(__name__, len(candidates)))
-    logging.debug("[{0}] candidates = {1}".format(__name__, candidates))
-    if options.test:
-        paging(candidates,["Rank","Rejection", "Timestamp", "Name", "#Sequence", "Freq", "Mag", "TAmb", "TSky", "RSS"], maxsize=options.limit)
-    else:
-        for row in candidates:
-            mark_duplicated_seqno2(connection, row)
-        connection.commit()
-        logging.info("[{0}] Done!".format(__name__))
-
+    input_retained_auto(connection, options.name)
+    
