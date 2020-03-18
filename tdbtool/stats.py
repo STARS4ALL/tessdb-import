@@ -62,6 +62,7 @@ def stats_global_auto(connection, name):
             SELECT name, MEDIAN(median_period), :method, COUNT(*)
             FROM  daily_stats_t
             WHERE name == :name
+            GROUP BY name
             ''', row)
     connection.commit()
     logging.info("[{0}] Done!".format(__name__))
@@ -104,6 +105,7 @@ def stats_daily(connection, options):
             SELECT name, date_id, AVG(delta_T), MEDIAN(delta_T), STDEV(delta_T), COUNT(*), MIN(delta_T), MAX(delta_T)
             FROM  first_differences_t
             WHERE name == :name
+            GROUP BY name, date_id
             ''', row)
     connection.commit()
     logging.info("[{0}] Done!".format(__name__))

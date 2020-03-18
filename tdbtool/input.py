@@ -227,6 +227,7 @@ def name_and_date_iterable(connection, name):
             SELECT  name, date_id, count(*)
             FROM    raw_readings_t
             WHERE  name == :name
+            GROUP BY name, date_id
             ORDER BY name ASC, date_id ASC
             ''', row)
     return cursor   # return Cursor as an iterable
@@ -382,12 +383,10 @@ def global_period_iterable(connection, name):
 def input_retained_auto(connection, options):
     logging.info("[{0}] Detecting isolated retained readings".format(__name__))
     for name, period in global_period_iterable(connection, options.name):
-        print(name, period)
         iterable1 = retained_iterable(connection, name, period)
         iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
         iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
         merged = zip(iterable1, iterable2)
-        print(candidates)
         candidates = zip(iterable1, iterable2)
         # Verified vcandidatos have the same sequence numbers
         candidates = [ p[0] for p in candidates if p[0][4] == p[1][4] ]
