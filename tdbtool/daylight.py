@@ -31,7 +31,7 @@ import traceback
 import tdbtool.s4a
 from .      import __version__
 from .      import DAYLIGHT
-from .utils import paging, shift_generator
+from .utils import paging, shift_generator, candidate_names_iterable
 
 # ----------------
 # Module constants
@@ -59,17 +59,6 @@ def is_invalid(iterable):
     Invalid magnitudes have a value of zero
         '''
     return sum(iterable) == 0
-
-
-def candidate_names_iterable(connection):
-    cursor = connection.cursor()
-    cursor.execute(
-        '''
-        SELECT DISTINCT name
-        FROM raw_readings_t 
-        ORDER BY name ASC
-        ''')
-    return cursor
 
 
 def candidates_iterable(connection, name):
@@ -101,7 +90,7 @@ def mark_daylight(connection, iterable):
 
 
 def daylight_detect_by_name(connection, name):
-    logging.info("[{0}] detecting daylight readings for {1}".format(__name__, name))
+    logging.debug("[{0}] detecting daylight readings for {1}".format(__name__, name))
     count = 0
     rows = []
     iterable1 = candidates_iterable(connection, name)
@@ -122,7 +111,7 @@ def daylight_detect_by_name(connection, name):
     if len(rows):
         count += len(rows)
         mark_daylight(connection, rows)
-    logging.info("[{0}] Detected {1} daylight readings for {2}. Done!".format(__name__, count, name))
+    logging.info("[{0}] Detected {1} daylight readings for {2}.".format(__name__, count, name))
 
 
 # ==============

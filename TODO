@@ -1,6 +1,2 @@
-PLOTS
-=====
-
-MODULE STATS
-============
+* Refactor input_differences para usar el caandidate_names_iterable
 

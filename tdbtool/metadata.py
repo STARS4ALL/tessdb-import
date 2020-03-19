@@ -28,7 +28,7 @@ import logging
 import tdbtool.s4a
 from .      import __version__
 from .      import BEFORE
-from .utils import open_database
+from .utils import open_database, candidate_names_iterable
 
 # ----------------
 # Module constants
@@ -44,34 +44,25 @@ SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
 # Module global variables
 # -----------------------
 
-def good_readings_iterable(connection, name):
-    cursor = connection.cursor()
-    if name is None:
-        cursor.execute(
-            '''
-            SELECT name, date_id, time_id
-            FROM  raw_readings_t 
-            WHERE rejected IS NULL
-            ORDER BY name ASC, date_id ASC, time_id ASC
-            ''')
-    else:
-        row = {'name': name}
-        cursor.execute(
-            '''
-            SELECT name, date_id, time_id
-            FROM  raw_readings_t
-            WHERE rejected IS NULL 
-            AND name == :name
-            ORDER BY name ASC, date_id ASC, time_id ASC
-            ''', row)
-    return cursor
-
-
 def open_reference_database(path):
     connection = open_database(path)
     connection.enable_load_extension(True)
     connection.load_extension(SQLITE_REGEXP_MODULE)
     return connection
+
+
+def good_readings_iterable(connection, name):
+    row = {'name': name}
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT date_id, time_id
+        FROM  raw_readings_t
+        WHERE rejected IS NULL 
+        AND name == :name
+        ORDER BY name ASC, date_id ASC, time_id ASC
+        ''', row)
+    return cursor
 
 
 def get_mac(connection, name, tstamp):
@@ -106,13 +97,16 @@ def get_tess_id(connection, name, date_id, time_id):
     tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
     mac = get_mac(connection, name, tstamp)
     if mac is None:
-        return {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': BEFORE}
-    tess_id = _get_tess_id(connection, mac, tstamp)
-    return {'name': name, 'date_id': date_id, 'time_id': time_id,'tess_id': tess_id}
+        result = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': BEFORE}
+    else:
+        tess_id =_get_tess_id(connection, mac, tstamp)
+        result = {'name': name, 'date_id': date_id, 'time_id': time_id,'tess_id': tess_id}
+    return result
 
 
 def mark_before_registry(connection, bad_rows):
-    logging.info("[{0}] marking {1} bad rows detected before photometer registration".format(__name__, len(bad_rows)))
+    name = bad_rows[0]['name']
+    logging.info("[{0}] marking {1} bad rows detected before photometer registration".format(__name__, name, len(bad_rows)))
     cursor = connection.cursor()
     cursor.executemany('''
         UPDATE raw_readings_t
@@ -134,6 +128,32 @@ def update_tess_id(connection, iterable):
         AND time_id == :time_id
         ''', iterable)
     connection.commit()
+
+
+def metadata_instrument_by_name(connection, name, connection2):
+    tess_ids = []
+    bad_rows = []
+    count    = 0
+    logging.debug("[{0}] adding instrument metadata to {1}".format(__name__, name))
+    for row in good_readings_iterable(connection, name):
+        tess_id = get_tess_id(connection2, name, row[0], row[1])
+        if 'reason' in tess_id:
+            bad_rows.append(tess_id)
+            continue
+        if len(tess_ids)  < ROWS_PER_COMMIT:
+            tess_ids.append(tess_id)
+        else:
+            count += ROWS_PER_COMMIT
+            update_tess_id(connection, tess_ids)
+            tess_ids = []
+    
+    if len(tess_ids):
+        count += len(tess_ids)
+        update_tess_id(connection, tess_ids)
+
+    if len(bad_rows):
+        mark_before_registry(connection, bad_rows)
+    logging.info("[{0}] Updated {1} tess ids for {2}.".format(__name__, count, name))
 
 # ==============
 # MAIN FUNCTIONS
@@ -170,32 +190,14 @@ def metadata_location(connection, options):
     connection2 = open_reference_database(options.dbase)
     logging.info("[{0}] Done!".format(__name__))
 
- 
+
+
+
 def metadata_instrument(connection, options):
-    tess_ids = []
-    bad_rows = []
-    count = 0
-    logging.info("[{0}] adding instrument metadata".format(__name__))
     logging.info("[{0}] Opening reference database {1}".format(__name__, options.dbase))
     connection2 = open_reference_database(options.dbase)
-    for row in good_readings_iterable(connection, options.name):
-        tess_id = get_tess_id(connection2, row[0], row[1], row[2])
-        if 'reason' in tess_id:
-            bad_rows.append(tess_id)
-            continue
-        if len(tess_ids)  < ROWS_PER_COMMIT:
-            tess_ids.append(tess_id)
-        else:
-            count += ROWS_PER_COMMIT
-            update_tess_id(connection, tess_ids)
-            tess_ids = []
-    
-    if len(tess_ids):
-        count += len(tess_ids)
-        update_tess_id(connection, tess_ids)
-
-    if len(bad_rows):
-        mark_before_registry(connection, bad_rows)
-    logging.info("[{0}] Updated {1} tess ids. Done!".format(__name__, count))
-
-
+    if options.name is not None:
+        metadata_instrument_by_name(connection, options.name, connection2)
+    else:
+        for name in candidate_names_iterable(connection):
+            metadata_instrument_by_name(connection, name[0], connection2)

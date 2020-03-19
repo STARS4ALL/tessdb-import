@@ -156,6 +156,16 @@ def open_database(dbase_path):
     return sqlite3.connect(dbase_path)
 
 
+def candidate_names_iterable(connection):
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT DISTINCT name
+        FROM raw_readings_t 
+        ORDER BY name ASC
+        ''')
+    return cursor
+
 def previous_iterable(connection, iterable):
     result = []
     for srcrow in iterable:

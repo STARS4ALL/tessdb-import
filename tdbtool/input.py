@@ -31,7 +31,7 @@ import traceback
 import tdbtool.s4a
 from .      import __version__
 from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, TSTAMP_FORMAT
-from .utils import shift_generator, previous_iterable, paging
+from .utils import shift_generator, previous_iterable, candidate_names_iterable, paging
 
 # ----------------
 # Module constants
