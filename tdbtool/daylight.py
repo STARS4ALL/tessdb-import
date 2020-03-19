@@ -102,6 +102,7 @@ def mark_daylight(connection, iterable):
 
 def daylight_detect_by_name(connection, name):
     logging.info("[{0}] detecting daylight readings for {1}".format(__name__, name))
+    count = 0
     rows = []
     iterable1 = candidates_iterable(connection, name)
     for points in shift_generator(iterable1, SHIFT_SIZE):
@@ -115,11 +116,13 @@ def daylight_detect_by_name(connection, name):
                 row    = {'name': chosen[0], 'date_id': chosen[1], 'time_id': chosen[2], 'reason': DAYLIGHT}
                 rows.append(row)
             else:
+                count += ROWS_PER_COMMIT
                 mark_daylight(connection, rows)
                 rows = []
     if len(rows):
+        count += len(rows)
         mark_daylight(connection, rows)
-    logging.info("[{0}] Done!".format(__name__))
+    logging.info("[{0}] Detected {1} daylight readings for {2}. Done!".format(__name__, count, name))
 
 
 # ==============
@@ -132,4 +135,5 @@ def daylight_detect(connection, options):
     else:
         for name in candidate_names_iterable(connection):
             daylight_detect_by_name(connection, name[0])
+
 

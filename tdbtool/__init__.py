@@ -27,6 +27,7 @@ DUP_SEQ_NUMBER  = "Dup Sequence Number"
 SINGLE          = "Single"
 PAIR            = "Pair"
 DAYLIGHT        = "Daylight"
+BEFORE          = "Before registry"
 
 # -----------------------
 # Module global variables
