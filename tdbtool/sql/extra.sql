@@ -107,3 +107,12 @@ CREATE TABLE IF NOT EXISTS global_stats_t
     N                   INTEGER NOT NULL, -- sample count where median was computed
     PRIMARY KEY (name)
 );
+
+CREATE TABLE IF NOT EXISTS location_daily_aggregate_t
+( 
+    tess_id             INTEGER NOT NULL, -- 
+    date_id             INTEGER NOT NULL, --
+    location_id         INTEGER NOT NULL, -- The location Id
+    same_location       INTEGER NOT NULL, -- True if same location is maintained during a day
+    PRIMARY KEY (tess_id, date_id)
+);

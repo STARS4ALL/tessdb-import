@@ -240,6 +240,32 @@ def metadata_location_by_name(connection, name, connection2):
         mark_bad_rows(connection, bad_rows)
     logging.info("[{0}] Updated {1} tess ids for {2}.".format(__name__, count, name))
 
+
+def aggregates_iterable(connection):
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT tess_id, date_id, MIN(location_id), (MIN(location_id) == MAX(location_id))
+        FROM tess_readings_t
+        GROUP BY tess_id, date_id
+        ''')
+    return cursor
+
+def aggregates_update(connection, iterable):
+    cursor = connection.cursor()
+    cursor.executemany(
+        '''
+        INSERT OR REPLACE INTO location_daily_aggregate_t(tess_id, date_id, location_id, same_location)
+        VALUES(?,?,?,?)
+        ''',iterable)
+    connection.commit()
+
+def metadata_refresh_all(connection, connection2):
+    logging.info("[{0}] Refresing metadata from reference database".format(__name__))
+    aggregates_update(connection, aggregates_iterable(connection2))
+    logging.info("[{0}] Done!".format(__name__))
+
+
 # ==============
 # MAIN FUNCTIONS
 # ==============
@@ -287,3 +313,9 @@ def metadata_location(connection, options):
     else:
         for name in candidate_names_iterable(connection):
             metadata_location_by_name(connection, name[0], connection2)
+
+def metadata_refresh(connection, options):
+    logging.info("[{0}] Opening reference database {1}".format(__name__, options.dbase))
+    connection2 = open_reference_database(options.dbase)
+    metadata_refresh_all(connection, connection2)
+   

@@ -34,7 +34,7 @@ from .show  import show_global, show_daily, show_differences, show_duplicated, s
 from .plot  import plot_period, plot_differences
 from .pipeline import pipeline_stage1, pipeline_stage2, pipeline_full
 from .daylight import daylight_detect
-from .metadata import metadata_flags, metadata_location, metadata_instrument
+from .metadata import metadata_flags, metadata_location, metadata_instrument, metadata_refresh
 
 # ----------------
 # Module constants
@@ -177,6 +177,9 @@ def createParser():
     # ------------------------------------------
 
     subparser = parser_meta.add_subparsers(dest='subcommand')
+    
+    pmr = subparser.add_parser('refresh', help='Refresh metadata aggregates from reference database')
+    
     pmf = subparser.add_parser('flags', help='Add flags metadata to readings')
     pmf.add_argument('--name', type=str, help='Optional TESS-W name')
 
@@ -185,6 +188,7 @@ def createParser():
 
     pmi = subparser.add_parser('instrument', help='Add instrument metadata to readings')
     pmi.add_argument('--name', type=str, help='Optional TESS-W name')
+
 
 
     # ------------------------------------------
