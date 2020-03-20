@@ -122,7 +122,20 @@ def get_tess_id(connection, name, date_id, time_id):
 
 #####################################
 
-def find_location_id(connection, tess_id, tstamp, period):
+def express_find_location_id(connection, tess_id, date_id):
+    row = {'tess_id': tess_id, 'date_id': date_id}
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT location_id
+        FROM location_daily_aggregate_t
+        WHERE tess_id == :tess_id
+        AND   date_id == :date_id
+        AND   same_location == 1
+        ''', row)
+    return cursor.fetchall()
+   
+
+def slow_find_location_id(connection, tess_id, tstamp, period):
     row = {'tess_id': tess_id, 'tstamp': tstamp}
     row['high'] = str(period/2) + ' seconds'
     row['low'] = str(-period/2) + ' seconds'
@@ -137,8 +150,16 @@ def find_location_id(connection, tess_id, tstamp, period):
         BETWEEN datetime(:tstamp, :low) 
         AND datetime(:tstamp, :high)
         ''', row)
-    result = cursor.fetchall()
-    return result
+    return cursor.fetchall()
+
+
+def find_location_id(connection, connection2, tess_id, date_id, time_id, period):
+    location_id = express_find_location_id(connection, tess_id, date_id)
+    if len(location_id) == 0 :
+        tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
+        location_id = slow_find_location_id(connection2, tess_id, tstamp, period)
+    return location_id
+
 
 def get_period(connection, name, date_id):
     row = {'name': name, 'date_id': date_id}
@@ -153,10 +174,9 @@ def get_period(connection, name, date_id):
 
 
 def get_location_id(connection, connection2, name, date_id, time_id, tess_id):
-    tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
     period = get_period(connection, name, date_id)
     logging.info("[{0}] {1} ({5}) period    for {2}T{3:06d} is  {4}".format(__name__, name, date_id, time_id, period, tess_id))
-    location_ids = find_location_id(connection2, tess_id, tstamp, period)
+    location_ids = find_location_id(connection, connection2, tess_id, date_id, time_id, period)
     logging.info("[{0}] {1} ({5}) locations for {2}T{3:06d} are {4}".format(__name__, name, date_id, time_id, location_ids,tess_id))
     result = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': "NO IMPLEMENTADO"}
     return result
