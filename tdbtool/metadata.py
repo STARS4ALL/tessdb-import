@@ -52,6 +52,7 @@ def open_reference_database(path):
 
 
 def good_readings_iterable(connection, name):
+    '''Used to find out tess_id values'''
     row = {'name': name}
     cursor = connection.cursor()
     cursor.execute(
@@ -59,6 +60,22 @@ def good_readings_iterable(connection, name):
         SELECT date_id, time_id
         FROM  raw_readings_t
         WHERE rejected IS NULL 
+        AND name == :name
+        ORDER BY name ASC, date_id ASC, time_id ASC
+        ''', row)
+    return cursor
+
+
+def good_readings_iterable2(connection, name):
+    '''Used to find out location_id values'''
+    row = {'name': name}
+    cursor = connection.cursor()
+    cursor.execute(
+        '''
+        SELECT date_id, time_id, tess_id
+        FROM  raw_readings_t
+        WHERE rejected IS NULL
+        AND tess_id IS NOT NULL 
         AND name == :name
         ORDER BY name ASC, date_id ASC, time_id ASC
         ''', row)
@@ -103,10 +120,52 @@ def get_tess_id(connection, name, date_id, time_id):
         result = {'name': name, 'date_id': date_id, 'time_id': time_id,'tess_id': tess_id}
     return result
 
+#####################################
 
-def mark_before_registry(connection, bad_rows):
+def find_location_id(connection, tess_id, tstamp, period):
+    row = {'tess_id': tess_id, 'tstamp': tstamp}
+    row['high'] = str(period/2) + ' seconds'
+    row['low'] = str(-period/2) + ' seconds'
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT r.location_id
+        FROM tess_readings_t AS r
+        JOIN date_t AS d USING (date_id)
+        JOIN time_t AS t USING (time_id)
+        WHERE r.tess_id == :tess_id
+        AND datetime(d.sql_date || 'T' || t.time) 
+        BETWEEN datetime(:tstamp, :low) 
+        AND datetime(:tstamp, :high)
+        ''', row)
+    result = cursor.fetchall()
+    return result
+
+def get_period(connection, name, date_id):
+    row = {'name': name, 'date_id': date_id}
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT median_period
+        FROM daily_stats_t
+        WHERE name == :name
+        AND date_id == :date_id
+        ''', row)
+    return cursor.fetchone()[0]
+
+
+def get_location_id(connection, connection2, name, date_id, time_id, tess_id):
+    tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
+    period = get_period(connection, name, date_id)
+    logging.info("[{0}] {1} ({5}) period    for {2}T{3:06d} is  {4}".format(__name__, name, date_id, time_id, period, tess_id))
+    location_ids = find_location_id(connection2, tess_id, tstamp, period)
+    logging.info("[{0}] {1} ({5}) locations for {2}T{3:06d} are {4}".format(__name__, name, date_id, time_id, location_ids,tess_id))
+    result = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': "NO IMPLEMENTADO"}
+    return result
+
+######################################3
+
+def mark_bad_rows(connection, bad_rows):
     name = bad_rows[0]['name']
-    logging.info("[{0}] marking {1} bad rows detected before photometer registration".format(__name__, name, len(bad_rows)))
+    logging.info("[{0}] marking {2} bard rows for {1}".format(__name__, name, len(bad_rows)))
     cursor = connection.cursor()
     cursor.executemany('''
         UPDATE raw_readings_t
@@ -152,7 +211,33 @@ def metadata_instrument_by_name(connection, name, connection2):
         update_tess_id(connection, tess_ids)
 
     if len(bad_rows):
-        mark_before_registry(connection, bad_rows)
+        mark_bad_rows(connection, bad_rows)
+    logging.info("[{0}] Updated {1} tess ids for {2}.".format(__name__, count, name))
+
+
+def metadata_location_by_name(connection, name, connection2):
+    location_ids = []
+    bad_rows = []
+    count    = 0
+    logging.debug("[{0}] adding instrument metadata to {1}".format(__name__, name))
+    for row in good_readings_iterable2(connection, name):
+        location_id = get_location_id(connection, connection2, name, row[0], row[1], row[2])
+        if 'reason' in location_id:
+            #bad_rows.append(location_id)
+            continue
+        if len(location_ids)  < ROWS_PER_COMMIT:
+            location_ids.append(location_id)
+        else:
+            count += ROWS_PER_COMMIT
+            update_location_id(connection, location_ids)
+            location_ids = []
+    
+    if len(location_ids):
+        count += len(location_ids)
+        update_location_id(connection, location_ids)
+
+    if len(bad_rows):
+        mark_bad_rows(connection, bad_rows)
     logging.info("[{0}] Updated {1} tess ids for {2}.".format(__name__, count, name))
 
 # ==============
@@ -184,15 +269,6 @@ def metadata_flags(connection, options):
     logging.info("[{0}] Done!".format(__name__))
 
 
-def metadata_location(connection, options):
-    logging.info("[{0}] adding location metadata".format(__name__))
-    logging.info("[{0}] Opening reference database {1}".format(__name__,options.dbase))
-    connection2 = open_reference_database(options.dbase)
-    logging.info("[{0}] Done!".format(__name__))
-
-
-
-
 def metadata_instrument(connection, options):
     logging.info("[{0}] Opening reference database {1}".format(__name__, options.dbase))
     connection2 = open_reference_database(options.dbase)
@@ -201,3 +277,13 @@ def metadata_instrument(connection, options):
     else:
         for name in candidate_names_iterable(connection):
             metadata_instrument_by_name(connection, name[0], connection2)
+
+
+def metadata_location(connection, options):
+    logging.info("[{0}] Opening reference database {1}".format(__name__, options.dbase))
+    connection2 = open_reference_database(options.dbase)
+    if options.name is not None:
+        metadata_location_by_name(connection, options.name, connection2)
+    else:
+        for name in candidate_names_iterable(connection):
+            metadata_location_by_name(connection, name[0], connection2)
