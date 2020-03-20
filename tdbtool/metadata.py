@@ -161,7 +161,7 @@ def find_location_id(connection, connection2, tess_id, date_id, time_id, period)
     return location_id
 
 
-def get_period(connection, name, date_id):
+def get_daily_period(connection, name, date_id):
     row = {'name': name, 'date_id': date_id}
     cursor = connection.cursor()
     cursor.execute('''
@@ -170,7 +170,26 @@ def get_period(connection, name, date_id):
         WHERE name == :name
         AND date_id == :date_id
         ''', row)
-    return cursor.fetchone()[0]
+    return cursor.fetchone()
+
+
+def get_global_period(connection, name):
+    row = {'name': name}
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT median_period
+        FROM global_stats_t
+        WHERE name == :name
+        ''', row)
+    return cursor.fetchone()
+
+
+def get_period(connection, name, date_id):
+    period = get_daily_period(connection, name, date_id)
+    if period is None:
+        period = get_global_period(connection, name)
+    return period[0]
+
 
 
 def get_location_id(connection, connection2, name, date_id, time_id, tess_id):
