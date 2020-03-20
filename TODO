@@ -1,2 +1,7 @@
-* Refactor input_differences para usar el caandidate_names_iterable
+
+^sppeed up computation of differenbes
+location slow method
+location cahched method
+show period ranges
+export timestamp sequence selected shifted --file
 

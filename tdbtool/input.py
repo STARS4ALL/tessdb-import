@@ -210,26 +210,17 @@ def retained_iterable(connection, name, period):
     return cursor
 
 
-def name_and_date_iterable(connection, name):
+def dates_iterable(connection, name):
     cursor = connection.cursor()
-    if name is None:
-        cursor.execute(
-            '''
-            SELECT  name, date_id, count(*)
-            FROM    raw_readings_t
-            GROUP BY name, date_id
-            ORDER BY name ASC, date_id ASC
-            ''')
-    else:
-        row = {'name': name}
-        cursor.execute(
-            '''
-            SELECT  name, date_id, count(*)
-            FROM    raw_readings_t
-            WHERE  name == :name
-            GROUP BY name, date_id
-            ORDER BY name ASC, date_id ASC
-            ''', row)
+    row = {'name': name}
+    cursor.execute(
+         '''
+        SELECT  date_id, count(*)
+        FROM    raw_readings_t
+        WHERE  name == :name
+        GROUP BY date_id
+        ORDER BY date_id ASC
+        ''', row)
     return cursor   # return Cursor as an iterable
 
 
@@ -361,29 +352,47 @@ def mark_duplicated_tstamp(connection, row, file_name):
 
 def global_period_iterable(connection, name):
     cursor = connection.cursor()
-    if name is None:
-        cursor.execute(
-            '''
-            SELECT name, median_period
-            FROM   global_stats_t
-            ORDER BY name ASC
-            ''')
-    else:
-        row = {'name': name}
-        cursor.execute(
-            '''
-            SELECT name, median_period
-            FROM   global_stats_t
-            WHERE name == :name
-            ORDER BY NAME ASC
-            ''', row)
+    row = {'name': name}
+    cursor.execute(
+        '''
+        SELECT median_period
+        FROM   global_stats_t
+        WHERE name == :name
+        ''', row)
     return cursor
 
 
-def input_retained_auto(connection, options):
-    logging.info("[{0}] Detecting isolated retained readings".format(__name__))
-    for name, period in global_period_iterable(connection, options.name):
-        iterable1 = retained_iterable(connection, name, period)
+def input_differences_by_name(connection, name):
+    logging.info("[{0}] Computing differences for {1}".format(__name__, name))
+    rows = []
+    for date in dates_iterable(connection, name):
+        date_id = date[0]
+        N       = date[1]
+        mark_corner_cases(connection, name, date_id, N)
+        logging.debug("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
+        for points in shift_generator(daily_iterable(connection, name, date_id), 2):
+            if not all(points):
+                continue
+            prev, cur = points
+            if len(rows) < ROWS_PER_COMMIT:
+                row = compute_daily_differences(name, date_id, prev, cur, N)
+                if 'period' in row:
+                    rows.append(row)
+                else:
+                    mark_duplicated_seqno(connection, row)
+            else:
+                write_daily_differences(connection, rows)
+                rows = []
+    # Write trailing rows
+    if len(rows):
+        write_daily_differences(connection, rows)
+    logging.info("[{0}] Done for {1}".format(__name__, name))
+
+
+def input_retained_by_name(connection, name):
+    logging.info("[{0}] Detecting isolated retained readings for {1}".format(__name__, name))
+    for period in global_period_iterable(connection, name):
+        iterable1 = retained_iterable(connection, name, period[0])
         iterable1 = previous_iterable(connection, iterable1)    # The candidate retained values are here
         iterable2 = previous_iterable(connection, iterable1)    # we need this to confirm
         merged = zip(iterable1, iterable2)
@@ -395,7 +404,7 @@ def input_retained_auto(connection, options):
         for row in candidates:
             mark_duplicated_seqno2(connection, row)
     connection.commit()
-    logging.info("[{0}] Done!".format(__name__))
+    logging.info("[{0}] Done for {1}".format(__name__, name))
 
 
 # ==============
@@ -437,33 +446,22 @@ def input_slurp(connection, options):
 
                 
 def input_differences(connection, options):
-    logging.info("[{0}] Computing differences".format(__name__))
-    rows = []
-    for group in name_and_date_iterable(connection, options.name):
-        name    = group[0]
-        date_id = group[1]
-        N       = group[2]
-        mark_corner_cases(connection, name, date_id, N)
-        logging.debug("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
-        for points in shift_generator(daily_iterable(connection, name, date_id), 2):
-            if not all(points):
-                continue
-            prev, cur = points
-            if len(rows) < ROWS_PER_COMMIT:
-                row = compute_daily_differences(name, date_id, prev, cur, N)
-                if 'period' in row:
-                    rows.append(row)
-                else:
-                    mark_duplicated_seqno(connection, row)
-            else:
-                write_daily_differences(connection, rows)
-                rows = []
-    # Write trailing rows
-    if len(rows):
-        write_daily_differences(connection, rows)
-    logging.info("[{0}] Done!".format(__name__))
+    if options.name is not None:
+        input_differences_by_name(connection, options.name)
+    else:
+        for name in candidate_names_iterable(connection):
+            input_differences_by_name(connection, name[0])
 
 
 def input_retained(connection, options):
     input_retained_auto(connection, options)
+
+
+def input_retained(connection, options):
+    if options.name is not None:
+        input_retained_by_name(connection, options.name)
+    else:
+        for name in candidate_names_iterable(connection):
+            input_retained_by_name(connection, name[0])
+
     
