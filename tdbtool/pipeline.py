@@ -36,7 +36,10 @@ from .utils import paging, previous_iterable
 from .input    import input_slurp, input_differences, input_retained
 from .stats    import stats_daily, stats_global
 from .daylight import daylight_detect
-from .metadata import metadata_flags, metadata_location, metadata_instrument
+from .metadata import metadata_flags, metadata_refresh
+from .location import metadata_location
+from .instrument import metadata_instrument
+
 
 # ----------------
 # Module constants
@@ -66,12 +69,14 @@ def pipeline_stage1(connection, options):
 
 def pipeline_stage2(connection, options):
     logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 1 ===============".format(__name__))
-    daylight_detect(connection, options)
+    metadata_refresh(connection, options)
     logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 2 ===============".format(__name__))
-    metadata_instrument(connection, options)
+    daylight_detect(connection, options)
     logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 3 ===============".format(__name__))
-    metadata_location(connection, options)
+    metadata_instrument(connection, options)
     logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 4 ===============".format(__name__))
+    metadata_location(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 5 ===============".format(__name__))
     metadata_flags(connection, options)
 
 def pipeline_full(connection, options):

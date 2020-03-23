@@ -1,5 +1,11 @@
-location slow method
-location cached method
 show period ranges
+show sequence --also-rejected
+
+------------------
+
 export timestamp sequence selected shifted --file
 
+-------------------------
+
+
+--------------------------

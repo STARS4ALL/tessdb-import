@@ -40,6 +40,8 @@ from .s4a import datetime
 # Module constants
 # ----------------
 
+SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
+
 # ----------------
 # package constants
 # ----------------
@@ -155,6 +157,26 @@ def open_database(dbase_path):
        raise IOError("No SQLite3 Database file found at {0}. Exiting ...".format(dbase_path))
     return sqlite3.connect(dbase_path)
 
+def open_reference_database(path):
+    connection = open_database(path)
+    connection.enable_load_extension(True)
+    connection.load_extension(SQLITE_REGEXP_MODULE)
+    return connection
+
+
+def mark_bad_rows(connection, bad_rows):
+    name = bad_rows[0]['name']
+    logging.info("[{0}] marking {2} bard rows for {1}".format(__name__, name, len(bad_rows)))
+    cursor = connection.cursor()
+    cursor.executemany('''
+        UPDATE raw_readings_t
+        SET rejected = :reason
+        WHERE name  == :name
+        AND date_id == :date_id
+        AND time_id == :time_id
+        ''', bad_rows)
+    connection.commit()
+
 
 def candidate_names_iterable(connection):
     cursor = connection.cursor()
@@ -183,3 +205,33 @@ def previous_iterable(connection, iterable):
         if temp is not None:
             result.append(temp)
     return result
+
+
+def get_daily_period(connection, name, date_id):
+    row = {'name': name, 'date_id': date_id}
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT median_period
+        FROM daily_stats_t
+        WHERE name == :name
+        AND date_id == :date_id
+        ''', row)
+    return cursor.fetchone()
+
+
+def get_global_period(connection, name):
+    row = {'name': name}
+    cursor = connection.cursor()
+    cursor.execute('''
+        SELECT median_period
+        FROM global_stats_t
+        WHERE name == :name
+        ''', row)
+    return cursor.fetchone()
+
+
+def get_period(connection, name, date_id):
+    period = get_daily_period(connection, name, date_id)
+    if period is None:
+        period = get_global_period(connection, name)
+    return period[0]

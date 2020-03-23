@@ -28,6 +28,7 @@ SINGLE          = "Single"
 PAIR            = "Pair"
 DAYLIGHT        = "Daylight"
 BEFORE          = "Before registry"
+AMBIGUOUS_LOC   = "Ambiguous Loctaion Id"
 
 # -----------------------
 # Module global variables
