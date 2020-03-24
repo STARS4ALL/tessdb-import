@@ -17,6 +17,7 @@ import os.path
 import sys
 import collections
 import sqlite3
+import logging
 
 # Python3 catch
 try:
@@ -166,7 +167,7 @@ def open_reference_database(path):
 
 def mark_bad_rows(connection, bad_rows):
     name = bad_rows[0]['name']
-    logging.info("[{0}] marking {2} bard rows for {1}".format(__name__, name, len(bad_rows)))
+    logging.info("[{0}] marking {2} bad rows for {1}".format(__name__, name, len(bad_rows)))
     cursor = connection.cursor()
     cursor.executemany('''
         UPDATE raw_readings_t

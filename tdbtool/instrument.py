@@ -137,7 +137,7 @@ def metadata_instrument_by_name(connection, name, connection2):
             count += ROWS_PER_COMMIT
             update_tess_id(connection, tess_ids)
             tess_ids = []
-    
+            logging.info("[{0}] Updated {1} instrument metadata until {2}".format(__name__, name, row[0]))
     if len(tess_ids):
         count += len(tess_ids)
         update_tess_id(connection, tess_ids)

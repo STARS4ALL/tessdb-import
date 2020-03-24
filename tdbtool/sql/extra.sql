@@ -116,3 +116,20 @@ CREATE TABLE IF NOT EXISTS location_daily_aggregate_t
     same_location       INTEGER NOT NULL, -- True if same location is maintained during a day
     PRIMARY KEY (tess_id, date_id)
 );
+
+CREATE TABLE IF NOT EXISTS location_gaps_t
+( 
+    name                TEXT    NOT NULL, -- TESS-W name
+    start_date_id       INTEGER NOT NULL, --
+    start_time_id       INTEGER NOT NULL, --
+    start_tstamp        TEXT    NOT NULL, -- ISO8601 timestamp
+    start_location_id   INTEGER NOT NULL, -- 
+    start_location      TEXT            , -- location name
+    end_date_id         INTEGER NOT NULL, --
+    end_time_id         INTEGER NOT NULL, --
+    end_tstamp          TEXT    NOT NULL, -- ISO8601 timestamp
+    end_location_id     INTEGER NOT NULL, -- 
+    end_location        TEXT            , -- location name
+    readings            INTEGER NOT NULL, -- number of readings inside this gap
+    PRIMARY KEY (name, start_date_id, start_time_id, end_date_id, end_time_id)
+);

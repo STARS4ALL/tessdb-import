@@ -3,7 +3,7 @@ show sequence --also-rejected
 
 ------------------
 
-export timestamp sequence selected shifted --file
+export [timestamp |sequence |selected | ambiguous| shifted] --file
 
 -------------------------
 
