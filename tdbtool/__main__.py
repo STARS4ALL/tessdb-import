@@ -32,7 +32,6 @@ from .input import input_slurp, input_differences, input_retained
 from .stats import stats_daily, stats_global
 from .show  import show_global, show_daily, show_differences, show_duplicated, show_count
 from .plot  import plot_period, plot_differences
-from .pipeline import pipeline_stage1, pipeline_stage2, pipeline_full
 from .daylight import daylight_detect
 from .metadata import metadata_flags, metadata_refresh
 from .location import metadata_location
@@ -44,6 +43,7 @@ from .instrument import metadata_instrument
 
 DEFAULT_DBASE = "/var/dbase/tess.db"
 EXTRA_DBASE   = "/var/dbase/extra.db"
+
 SQLITE_MATH_MODULE   = "/usr/local/lib/libsqlitefunctions.so"
 SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
 
@@ -56,7 +56,6 @@ SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
 # -----------------------
 
 
-
 def configureLogging(options):
     if options.verbose:
         level = logging.DEBUG
@@ -67,14 +66,17 @@ def configureLogging(options):
     logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=level)
 
 
-def create_datamodel(options, connection):
+def create_datamodel(connection, options):
     datamodel_path = resource_filename(__name__, 'sql/extra.sql')
     with open(datamodel_path) as f: 
         lines = f.readlines() 
     script = ''.join(lines)
-    logging.info("[{0}] Creating data model from {1}".format(__name__, datamodel_path))
+    logging.info("[{0}] Creating data model from {1}".format(__name__,datamodel_path))
     connection.executescript(script)
 
+# =================== #
+# THE ARGUMENT PARSER #
+# =================== #
 
 def createParser():
     # create the top-level parser
@@ -157,7 +159,6 @@ def createParser():
     pdd = subparser.add_parser('detect', help='Detect daylight readings')
     pdd.add_argument('--name', type=str, help='Optional TESS-W name')
 
-
     # ------------------------------------------
     # Create second level parsers for 'pipeline'
     # ------------------------------------------
@@ -191,8 +192,6 @@ def createParser():
 
     pmi = subparser.add_parser('instrument', help='Add instrument metadata to readings')
     pmi.add_argument('--name', type=str, help='Optional TESS-W name')
-
-
 
     # ------------------------------------------
     # Create second level parsers for 'show'
@@ -233,25 +232,42 @@ def createParser():
 
     return parser
 
+# ================= #
+# PIPELINE COMMANDS #
+# ================= #
 
-def configureLogging(options):
-    if options.verbose:
-        level = logging.DEBUG
-    elif options.quiet:
-        level = logging.WARN
-    else:
-        level = logging.INFO
-    logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', level=level)
+def pipeline_stage1(connection, options):
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 1 ===============".format(__name__))
+    input_slurp(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 2 ===============".format(__name__))
+    input_differences(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 3 ===============".format(__name__))
+    stats_daily(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 4 ===============".format(__name__))
+    stats_global(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 1 STEP 5 ===============".format(__name__))
+    input_retained(connection, options)
+
+def pipeline_stage2(connection, options):
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 1 ===============".format(__name__))
+    metadata_refresh(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 2 ===============".format(__name__))
+    daylight_detect(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 3 ===============".format(__name__))
+    metadata_instrument(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 4 ===============".format(__name__))
+    metadata_location(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 5 ===============".format(__name__))
+    metadata_flags(connection, options)
+
+def pipeline_full(connection, options):
+    pipeline_stage1(connection, options)
+    pipeline_stage2(connection, options)
 
 
-def create_datamodel(connection, options):
-    datamodel_path = resource_filename(__name__, 'sql/extra.sql')
-    with open(datamodel_path) as f: 
-        lines = f.readlines() 
-    script = ''.join(lines)
-    logging.info("[{0}] Creating data model from {1}".format(__name__,datamodel_path))
-    connection.executescript(script)
-
+# ================ #
+# MAIN ENTRY POINT #
+# ================ #
 
 def main():
     '''
@@ -280,6 +296,3 @@ def main():
         pass
 
 main()
-
-
-
