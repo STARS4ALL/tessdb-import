@@ -77,10 +77,10 @@ class datetime(Datetime.datetime):
     def from_dbase_ids(cls, date_id, time_id):
         yyyy = date_id // 10000
         mmmm = (date_id % 10000) // 100
-        dd   = (date_id % 10000) %  100
+        dd   = date_id  % 100
         hh   = time_id // 10000
         mm   = (time_id % 10000) // 100
-        ss   = (time_id % 10000) %  100
+        ss   = time_id %  100
         return cls(yyyy, mmmm, dd, hh, mm, ss)
 
 

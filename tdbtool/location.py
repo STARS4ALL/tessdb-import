@@ -250,16 +250,14 @@ def express_find_location_id(connection, tess_id, date_id):
 
 def slow_find_location_id(connection, tess_id, tstamp, period):
     row = {'tess_id': tess_id, 'tstamp': tstamp}
-    row['high'] = str(period/2) + ' seconds'
-    row['low'] = str(-period/2) + ' seconds'
+    row['high'] = str(period/2)  + ' seconds'
+    row['low']  = str(-period/2) + ' seconds'
     cursor = connection.cursor()
     cursor.execute('''
-        SELECT r.location_id
+        SELECT location_id
         FROM tess_readings_t AS r
-        JOIN date_t AS d USING (date_id)
-        JOIN time_t AS t USING (time_id)
-        WHERE r.tess_id == :tess_id
-        AND datetime(d.sql_date || 'T' || t.time) 
+        WHERE tess_id == :tess_id
+        AND datetime(iso8601fromids(date_id, time_id)) 
         BETWEEN datetime(:tstamp, :low) 
         AND datetime(:tstamp, :high)
         ''', row)
@@ -304,9 +302,8 @@ def metadata_location_by_name_step1(connection, name, connection2):
     logging.info("[{0}] Adding location metadata to {1}".format(__name__, name))
     for row in good_readings_iterable(connection, name):
         location_id = get_location_id(connection, connection2, name, row[0], row[1], row[2])
-        if len(location_ids) < ROWS_PER_COMMIT:
-            location_ids.append(location_id)
-        else:
+        location_ids.append(location_id)
+        if len(location_ids) == ROWS_PER_COMMIT:
             count += ROWS_PER_COMMIT
             update_location_id(connection, location_ids)
             location_ids = []
@@ -343,9 +340,6 @@ def metadata_location_by_name_step2(connection, name, connection2):
 
 
 def metadata_location_by_name(connection, name, connection2):
-    metadata_location_by_name_step1(connection, name, connection2)
-    # repeat due to the boundary effect of updating a table while looping over the same table
-    logging.info("[{0}] SECOND PASS FOR LOCATIONS ASSIGNED TO {1}".format(__name__, name))
     metadata_location_by_name_step1(connection, name, connection2)
     # Close the detrected gaps
     metadata_location_by_name_step2(connection, name, connection2)

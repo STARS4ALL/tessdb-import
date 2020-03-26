@@ -17,7 +17,6 @@ import os.path
 import sys
 import collections
 import sqlite3
-import logging
 
 # Python3 catch
 try:
@@ -42,6 +41,7 @@ from .s4a import datetime
 # ----------------
 
 SQLITE_REGEXP_MODULE = "/usr/lib/sqlite3/pcre.so"
+SQLITE_MATH_MODULE   = "/usr/local/lib/libsqlitefunctions.so"
 
 # ----------------
 # package constants
@@ -162,12 +162,12 @@ def open_reference_database(path):
     connection = open_database(path)
     connection.enable_load_extension(True)
     connection.load_extension(SQLITE_REGEXP_MODULE)
+    connection.load_extension(SQLITE_MATH_MODULE)
     return connection
 
 
 def mark_bad_rows(connection, bad_rows):
     name = bad_rows[0]['name']
-    logging.info("[{0}] marking {2} bad rows for {1}".format(__name__, name, len(bad_rows)))
     cursor = connection.cursor()
     cursor.executemany('''
         UPDATE raw_readings_t

@@ -30,7 +30,7 @@ import traceback
 
 import tdbtool.s4a
 from .      import __version__
-from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, DAYLIGHT, TSTAMP_FORMAT
+from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, DAYLIGHT, AMBIGUOUS_LOC, COINCIDENT, TSTAMP_FORMAT
 from .utils import paging, previous_iterable
 
 # ----------------
@@ -108,7 +108,7 @@ def show_duplicated_until_date(connection, options):
 
 
 
-def show_count_valid(connection, name):
+def show_count_candidates(connection, name):
     cursor = connection.cursor()
     if name is None:
         cursor.execute(
@@ -123,7 +123,27 @@ def show_count_valid(connection, name):
             '''
             SELECT name, COUNT(*) FROM raw_readings_t
             WHERE name == :name
-            AND WHERE rejected IS NULL
+            AND rejected IS NULL
+            ''', row)
+    paging(cursor,["Name", "Count"])
+
+
+def show_count_accepted(connection, name):
+    cursor = connection.cursor()
+    if name is None:
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE accepted IS NOT NULL
+            GROUP BY name
+            ''')
+    else:
+        row = {'name': name }
+        cursor.execute(
+            '''
+            SELECT name, COUNT(*) FROM raw_readings_t
+            WHERE name == :name
+            AND  accepted IS NULL
             ''', row)
     paging(cursor,["Name", "Count"])
 
@@ -165,6 +185,14 @@ def show_count_pairs(connection, name):
 
 def show_count_daylight(connection, name):
     iterable = show_count_reason(connection, name, DAYLIGHT)
+    paging(iterable,["Name", "Count"])
+
+def show_count_coincident(connection, name):
+    iterable = show_count_reason(connection, name, COINCIDENT)
+    paging(iterable,["Name", "Count"])
+
+def show_count_ambiguous(connection, name):
+    iterable = show_count_reason(connection, name, AMBIGUOUS_LOC)
     paging(iterable,["Name", "Count"])
 
 
@@ -259,8 +287,10 @@ def show_around(connection, options):
 
 
 def show_count(connection, options):
-    if options.valid:
-        show_count_valid(connection, options.name)
+    if options.candidates:
+        show_count_candidates(connection, options.name)
+    elif options.accepted:
+        show_count_accepted(connection, options.name)
     elif options.duplicated:
         show_count_duplicated(connection, options.name)
     elif options.single:
@@ -269,6 +299,8 @@ def show_count(connection, options):
         show_count_pairs(connection, options.name)
     elif options.daylight:
         show_count_daylight(connection, options.name)
+    elif options.coincident:
+        show_count_coincident(connection, options.name)
     else:
         pass
   

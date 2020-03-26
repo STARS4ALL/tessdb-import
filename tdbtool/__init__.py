@@ -23,12 +23,15 @@ from ._version import get_versions
 # ----------------
 
 TSTAMP_FORMAT   = "%Y-%m-%dT%H:%M:%SZ"
+
+# rejection codes
 DUP_SEQ_NUMBER  = "Dup Sequence Number"
 SINGLE          = "Single"
 PAIR            = "Pair"
 DAYLIGHT        = "Daylight"
 BEFORE          = "Before registry"
 AMBIGUOUS_LOC   = "Ambiguous Location Id"
+COINCIDENT      = "Coincident reading in reference database"
 
 # -----------------------
 # Module global variables

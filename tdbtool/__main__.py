@@ -27,15 +27,16 @@ from pkg_resources import resource_filename
 
 from . import __version__
 
-from .utils import utf8, mkdate, percent, open_database
-from .input import input_slurp, input_differences, input_retained
-from .stats import stats_daily, stats_global
-from .show  import show_global, show_daily, show_differences, show_duplicated, show_count
-from .plot  import plot_period, plot_differences
-from .daylight import daylight_detect
-from .metadata import metadata_flags, metadata_refresh
-from .location import metadata_location
+from .utils      import utf8, mkdate, percent, open_database
+from .input      import input_slurp, input_differences, input_retained
+from .stats      import stats_daily, stats_global
+from .show       import show_global, show_daily, show_differences, show_duplicated, show_count
+from .plot       import plot_period, plot_differences
+from .daylight   import daylight_detect
+from .metadata   import metadata_flags, metadata_refresh
+from .location   import metadata_location
 from .instrument import metadata_instrument
+from .readings   import readings_compare
 
 # ----------------
 # Module constants
@@ -103,6 +104,7 @@ def createParser():
     parser_day   = subparser.add_parser('daylight', help='daylight commands')
     parser_pipe  = subparser.add_parser('pipeline', help='pipeline commands')
     parser_meta  = subparser.add_parser('metadata', help='metadata commands')
+    parser_read  = subparser.add_parser('readings', help='readings commands')
 
     # ------------------------------------------
     # Create second level parsers for 'input'
@@ -194,6 +196,15 @@ def createParser():
     pmi.add_argument('--name', type=str, help='Optional TESS-W name')
 
     # ------------------------------------------
+    # Create second level parsers for 'readings'
+    # ------------------------------------------
+
+    subparser = parser_read.add_subparsers(dest='subcommand')
+    
+    prc = subparser.add_parser('compare', help='Compare readings with the reference database')
+    prc.add_argument('--name', type=str,  help='Optional TESS-W name')
+
+    # ------------------------------------------
     # Create second level parsers for 'show'
     # ------------------------------------------
 
@@ -224,11 +235,14 @@ def createParser():
     shc = subparser.add_parser('count', help='show counts')
     shc.add_argument('--name', type=str, help='Optional TESS-W name')
     shcex = shc.add_mutually_exclusive_group(required=True)
-    shcex.add_argument('--valid', action="store_true", help='Number of valid readings')
+    shcex.add_argument('--candidates', action="store_true", help='Number of candidate at a given stage readings')
+    shcex.add_argument('--accepted',   action="store_true", help='Number of final accepted readings')
     shcex.add_argument('--duplicated', action="store_true", help='Number of duplicated sequence numbers')
-    shcex.add_argument('--single', action="store_true", help='Number of single (per day) readings')
-    shcex.add_argument('--pairs',  action="store_true", help='Number of pairs (per day) readings')
-    shcex.add_argument('--daylight',  action="store_true", help='Number daylight readings')
+    shcex.add_argument('--ambiguous',  action="store_true", help='Number of ambiguous location readings')
+    shcex.add_argument('--coincident', action="store_true", help='Number of coincident readings in the reference database')
+    shcex.add_argument('--single',     action="store_true", help='Number of single (per day) readings')
+    shcex.add_argument('--pairs',      action="store_true", help='Number of pairs (per day) readings')
+    shcex.add_argument('--daylight',   action="store_true", help='Number daylight readings')
 
     return parser
 

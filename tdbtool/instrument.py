@@ -131,9 +131,8 @@ def metadata_instrument_by_name(connection, name, connection2):
         if 'reason' in tess_id:
             bad_rows.append(tess_id)
             continue
-        if len(tess_ids)  < ROWS_PER_COMMIT:
-            tess_ids.append(tess_id)
-        else:
+        tess_ids.append(tess_id)
+        if len(tess_ids) == ROWS_PER_COMMIT:
             count += ROWS_PER_COMMIT
             update_tess_id(connection, tess_ids)
             tess_ids = []
