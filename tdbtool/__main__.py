@@ -273,6 +273,8 @@ def pipeline_stage2(connection, options):
     metadata_location(connection, options)
     logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 5 ===============".format(__name__))
     metadata_flags(connection, options)
+    logging.info("[{0}] =============== PIPELINE STAGE 2 STEP 6 ===============".format(__name__))
+    readings_compare(connection, options)
 
 def pipeline_full(connection, options):
     pipeline_stage1(connection, options)

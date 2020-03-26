@@ -183,7 +183,7 @@ def readings_compare_by_name(connection, name, connection2):
     bad_count    = 0
     good_count   = 0
     periodDAO = PeriodDAO(connection)
-    logging.info("[{0}] Exploring existing readings in reference database for {1}".format(__name__, name))
+    logging.info("[{0}] Comparing readings in reference database for {1}".format(__name__, name))
     for date_id, time_id, tess_id, seq_num in good_readings_iterable(connection, name):
         period = periodDAO.getPeriod(name, date_id)
         tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
