@@ -7,6 +7,5 @@ export [timestamp |sequence |selected | ambiguous| shifted | readings] --file
 
 -------------------------
 
-class LocationCache(object)
 
 --------------------------

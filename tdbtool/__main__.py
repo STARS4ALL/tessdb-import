@@ -306,7 +306,7 @@ def main():
     except KeyboardInterrupt as e:
         logging.error("[{0}] Interrupted by user ".format(__name__))
     except Exception as e:
-        logging.error("[{0}] Fatal error => {1}".format(__name__, utf8(str(e)) ))
+        logging.error("[{0}] Fatal error => {1}".format(__name__, str(e) ))
         traceback.print_exc()
     finally:
         pass

@@ -57,6 +57,84 @@ SQLITE_MATH_MODULE   = "/usr/local/lib/libsqlitefunctions.so"
 # Module classes
 # --------------
 
+class PeriodDAO(object):
+
+    def __init__(self, connection):
+        self.connection  = connection
+        
+
+    def getPeriod(self, name, date_id):
+        period = self.get_daily_period(name, date_id)
+        if period is None:
+            period = self.get_global_period(name)
+        return period[0]
+
+
+    def get_daily_period(self, name, date_id):
+        row = {'name': name, 'date_id': date_id}
+        cursor = self.connection.cursor()
+        cursor.execute('''
+            SELECT median_period
+            FROM daily_stats_t
+            WHERE name == :name
+            AND date_id == :date_id
+            ''', row)
+        return cursor.fetchone()
+
+
+    def get_global_period(self, name):
+        row = {'name': name}
+        cursor = self.connection.cursor()
+        cursor.execute('''
+            SELECT median_period
+            FROM global_stats_t
+            WHERE name == :name
+            ''', row)
+        return cursor.fetchone()
+
+    def __repr__(self):
+        return "H: 0%, M: 100%"
+
+
+
+class PeriodCachedDAO(PeriodDAO):
+
+    def __init__(self, connection):
+        super(PeriodCachedDAO, self).__init__(connection)
+        self.cache = {}
+        self.hits = {}
+        self.miss = {}
+        self.dailyHits = {}
+        self.dailyMiss = {}
+
+
+    def getPeriod(self, name, date_id):
+        key = name + str(date_id)
+        if key in self.cache:
+            self.hits[key] = self.hits.get(key, 0) + 1
+            return self.cache[key]
+        self.miss[key] = self.miss.get(key, 0) + 1
+        period = self.get_daily_period(name, date_id)
+        if period is None:
+            self.dailyMiss[key] = self.dailyMiss.get(key, 0) + 1
+            period = self.get_global_period(name)
+        else:
+            self.dailyHits[key] = self.dailyHits.get(key, 0) + 1
+        self.cache[key] = period[0]
+        return period[0]
+
+
+    def __repr__(self):
+        hits = sum(self.hits.values())
+        miss = sum(self.hits.values())
+        dhits = sum(self.dailyHits.values())
+        dmiss = sum(self.dailyMiss.values())
+        H = 100.0 * hits / float(hits+miss)
+        M = 100 - H
+        DH = 100.0 * dhits / float(dhits+dmiss)
+        DM = 100 - DH
+        return "H: {0}%, M: {1}%, DH: {2}%, DM: {3}%".format(H, M, DH, DM)
+
 
 # -----------------------
 # Module global functions
@@ -206,33 +284,3 @@ def previous_iterable(connection, iterable):
         if temp is not None:
             result.append(temp)
     return result
-
-
-def get_daily_period(connection, name, date_id):
-    row = {'name': name, 'date_id': date_id}
-    cursor = connection.cursor()
-    cursor.execute('''
-        SELECT median_period
-        FROM daily_stats_t
-        WHERE name == :name
-        AND date_id == :date_id
-        ''', row)
-    return cursor.fetchone()
-
-
-def get_global_period(connection, name):
-    row = {'name': name}
-    cursor = connection.cursor()
-    cursor.execute('''
-        SELECT median_period
-        FROM global_stats_t
-        WHERE name == :name
-        ''', row)
-    return cursor.fetchone()
-
-
-def get_period(connection, name, date_id):
-    period = get_daily_period(connection, name, date_id)
-    if period is None:
-        period = get_global_period(connection, name)
-    return period[0]

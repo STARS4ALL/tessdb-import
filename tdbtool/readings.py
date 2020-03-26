@@ -30,13 +30,13 @@ import tdbtool.s4a
 from .      import __version__
 from .      import COINCIDENT
 from .utils import open_database, open_reference_database, mark_bad_rows
-from .utils import candidate_names_iterable
+from .utils import candidate_names_iterable, PeriodDAO
 
 # ----------------
 # Module constants
 # ----------------
 
-ROWS_PER_COMMIT = 2000
+ROWS_PER_COMMIT = 10000
 
 # -----------------------
 # Module global variables
@@ -47,83 +47,6 @@ ROWS_PER_COMMIT = 2000
 # Module classes
 # --------------
 
-class PeriodDAO(object):
-
-    def __init__(self, connection):
-        self.connection  = connection
-        
-
-    def getPeriod(self, name, date_id):
-        period = self.get_daily_period(name, date_id)
-        if period is None:
-            period = self.get_global_period(name)
-        return period[0]
-
-
-    def get_daily_period(self, name, date_id):
-        row = {'name': name, 'date_id': date_id}
-        cursor = self.connection.cursor()
-        cursor.execute('''
-            SELECT median_period
-            FROM daily_stats_t
-            WHERE name == :name
-            AND date_id == :date_id
-            ''', row)
-        return cursor.fetchone()
-
-
-    def get_global_period(self, name):
-        row = {'name': name}
-        cursor = self.connection.cursor()
-        cursor.execute('''
-            SELECT median_period
-            FROM global_stats_t
-            WHERE name == :name
-            ''', row)
-        return cursor.fetchone()
-
-    def __repr__(self):
-        return "H: 0%, M: 100%"
-
-
-
-class PeriodCachedDAO(PeriodDAO):
-
-    def __init__(self, connection):
-        super(PeriodCachedDAO, self).__init__(connection)
-        self.cache = {}
-        self.hits = {}
-        self.miss = {}
-        self.dailyHits = {}
-        self.dailyMiss = {}
-
-
-    def getPeriod(self, name, date_id):
-        key = name + str(date_id)
-        if key in self.cache:
-            self.hits[key] = self.hits.get(key, 0) + 1
-            return self.cache[key]
-        self.miss[key] = self.miss.get(key, 0) + 1
-        period = self.get_daily_period(name, date_id)
-        if period is None:
-            self.dailyMiss[key] = self.dailyMiss.get(key, 0) + 1
-            period = self.get_global_period(name)
-        else:
-            self.dailyHits[key] = self.dailyHits.get(key, 0) + 1
-        self.cache[key] = period[0]
-        return period[0]
-
-
-    def __repr__(self):
-        hits = sum(self.hits.values())
-        miss = sum(self.hits.values())
-        dhits = sum(self.dailyHits.values())
-        dmiss = sum(self.dailyMiss.values())
-        H = 100.0 * hits / float(hits+miss)
-        M = 100 - H
-        DH = 100.0 * dhits / float(dhits+dmiss)
-        DM = 100 - DH
-        return "H: {0}%, M: {1}%, DH: {2}%, DM: {3}%".format(H, M, DH, DM)
 
 
 
@@ -154,14 +77,13 @@ def find_sequence_number(connection, tess_id, tstamp, period, seq_num):
     row['low']  = str(-period/2) + ' seconds'
     cursor = connection.cursor()
     cursor.execute('''
-        SELECT sequence_number
+        SELECT sequence_number, datetime(iso8601fromids(date_id, time_id)) as tstamp
         FROM tess_readings_t
         WHERE tess_id == :tess_id
-        AND datetime(iso8601fromids(date_id, time_id)) 
-        BETWEEN datetime(:tstamp, :low) 
-        AND datetime(:tstamp, :high)
+        AND tstamp BETWEEN datetime(:tstamp, :low) AND datetime(:tstamp, :high)
+        ORDER BY tstamp
         ''', row)
-    return cursor.fetchone()
+    return cursor.fetchall()
 
 
 def mark_ok_rows(connection, ok_rows):
@@ -188,7 +110,7 @@ def readings_compare_by_name(connection, name, connection2):
         period = periodDAO.getPeriod(name, date_id)
         tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
         result = find_sequence_number(connection2, tess_id, tstamp, period, seq_num)
-        if result is None:
+        if  not result:
             good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'flag': 1}
             ok_sequence_ids.append(good_row)
             if len(ok_sequence_ids) == ROWS_PER_COMMIT:
@@ -197,8 +119,11 @@ def readings_compare_by_name(connection, name, connection2):
                 mark_ok_rows(connection, ok_sequence_ids)
                 ok_sequence_ids = []
             continue
-        if result[0] != seq_num:
-            logging.info("[{0}] Something werid with sequence numbers in {1}. Ref = {2}, CSV = {3}.".format(__name__, name, result[0], seq_num))
+        if len(result) > 1:
+            logging.warn("[{0}] Search returned {1} readings.".format(__name__, name, len(result)))
+        if result[0][0] != seq_num:
+            logging.warn("[{0}] Sequence numbers mismatch in {1}. {2} (Ref) = {3}, {4} (CSV) = {5}.".format(__name__, name, result[0][1], result[0][0], tstamp, seq_num))
+        
         bad_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': COINCIDENT}
         dup_sequence_ids.append(bad_row)
         if len(dup_sequence_ids) == ROWS_PER_COMMIT:

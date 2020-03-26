@@ -30,7 +30,8 @@ import tdbtool.s4a
 from .      import __version__
 from .      import BEFORE
 from .utils import open_database, open_reference_database, mark_bad_rows
-from .utils import candidate_names_iterable, shift_generator, get_period
+from .utils import candidate_names_iterable, shift_generator
+
 # ----------------
 # Module constants
 # ----------------
