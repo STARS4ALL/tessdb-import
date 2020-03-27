@@ -29,7 +29,7 @@ import collections
 import tdbtool.s4a
 from .      import __version__
 from .      import BEFORE
-from .utils import open_database, open_reference_database, mark_bad_rows
+from .utils import open_database, open_reference_database, update_rejection_code
 from .utils import candidate_names_iterable, shift_generator
 
 # ----------------
@@ -54,7 +54,7 @@ ROWS_PER_COMMIT = 50000
 
 
 
-def good_readings_iterable(connection, name):
+def unprocessed_iterable(connection, name):
     '''Used to find out tess_id values'''
     row = {'name': name}
     cursor = connection.cursor()
@@ -63,6 +63,7 @@ def good_readings_iterable(connection, name):
         SELECT date_id, time_id
         FROM  raw_readings_t
         WHERE rejected IS NULL 
+        AND tess_id IS NULL
         AND name == :name
         ORDER BY date_id ASC, time_id ASC
         ''', row)
@@ -127,7 +128,7 @@ def metadata_instrument_by_name(connection, name, connection2):
     bad_rows = []
     count    = 0
     logging.debug("[{0}] adding instrument metadata to {1}".format(__name__, name))
-    for row in good_readings_iterable(connection, name):
+    for row in unprocessed_iterable(connection, name):
         tess_id = get_tess_id(connection2, name, row[0], row[1])
         if 'reason' in tess_id:
             bad_rows.append(tess_id)
@@ -143,7 +144,7 @@ def metadata_instrument_by_name(connection, name, connection2):
         update_tess_id(connection, tess_ids)
 
     if len(bad_rows):
-        mark_bad_rows(connection, bad_rows)
+        update_rejection_code(connection, bad_rows)
     logging.info("[{0}] Updated {1} tess ids for {2}.".format(__name__, count, name))
 
 

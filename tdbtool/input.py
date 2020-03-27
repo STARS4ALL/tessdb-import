@@ -365,9 +365,7 @@ def global_period_iterable(connection, name):
 def input_differences_by_name(connection, name):
     logging.info("[{0}] Computing differences for {1}".format(__name__, name))
     rows = []
-    for date in dates_iterable(connection, name):
-        date_id = date[0]
-        N       = date[1]
+    for date_id, N in dates_iterable(connection, name):
         mark_corner_cases(connection, name, date_id, N)
         logging.debug("[{0}] Computing differences for {1} on {2} ({3} points)".format(__name__, name, date_id, N))
         for points in shift_generator(daily_iterable(connection, name, date_id), 2):

@@ -235,6 +235,7 @@ def createParser():
     shc = subparser.add_parser('count', help='show counts')
     shc.add_argument('--name', type=str, help='Optional TESS-W name')
     shcex = shc.add_mutually_exclusive_group(required=True)
+    shcex.add_argument('--total',      action="store_true", help='Total number of readings, irrespective of the rejection state')
     shcex.add_argument('--candidates', action="store_true", help='Number of candidate at a given stage readings')
     shcex.add_argument('--accepted',   action="store_true", help='Number of final accepted readings')
     shcex.add_argument('--duplicated', action="store_true", help='Number of duplicated sequence numbers')

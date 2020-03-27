@@ -27,8 +27,7 @@ CREATE TABLE IF NOT EXISTS raw_readings_t
     --- Here start mnagamenet fields
     seconds             INTEGER NOT NULL, -- time_id as true seconds within the day
     line_number         INTEGER NOT NULL, -- original line number where dupliated appear
-    rejected            TEXT,             -- Rejected reason 'Dup Sequence Number','Single','Couple', ...
-    accepted            INTEGER,          -- Final acceptance Flag. 1 = Accepted, NULL = not accepted
+    rejected            INTEGER,          -- Rejected code NULL=unprocessed, 0=OK, >0 rejected for soem reason
     PRIMARY KEY(name, date_id, time_id)
 );
 

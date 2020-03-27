@@ -244,7 +244,7 @@ def open_reference_database(path):
     return connection
 
 
-def mark_bad_rows(connection, bad_rows):
+def update_rejection_code(connection, bad_rows):
     name = bad_rows[0]['name']
     cursor = connection.cursor()
     cursor.executemany('''

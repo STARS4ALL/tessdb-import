@@ -29,7 +29,7 @@ import collections
 import tdbtool.s4a
 from .      import __version__
 from .      import AMBIGUOUS_LOC
-from .utils import open_database, open_reference_database, mark_bad_rows
+from .utils import open_database, open_reference_database, update_rejection_code
 from .utils import candidate_names_iterable, shift_generator, PeriodCachedDAO
 
 # ----------------
@@ -295,7 +295,7 @@ class LocationGap(object):
 # -----------------------
 
 
-def good_readings_iterable(connection, name):
+def unprocessed_iterable(connection, name):
     '''Used to find out location_id values'''
     row = {'name': name}
     cursor = connection.cursor()
@@ -304,7 +304,6 @@ def good_readings_iterable(connection, name):
         SELECT date_id, time_id, tess_id
         FROM  raw_readings_t
         WHERE rejected IS NULL
-        AND tess_id IS NOT NULL
         AND location_id IS NULL 
         AND name == :name
         ORDER BY date_id ASC, time_id ASC
@@ -312,7 +311,7 @@ def good_readings_iterable(connection, name):
     return cursor
 
 
-def good_readings_iterable2(connection, name):
+def partially_processed_iterable(connection, name):
     '''Used to detect gaps in location_id values'''
     row = {'name': name}
     cursor = connection.cursor()
@@ -321,7 +320,6 @@ def good_readings_iterable2(connection, name):
         SELECT date_id, time_id, location_id
         FROM  raw_readings_t
         WHERE rejected IS NULL
-        AND tess_id IS NOT NULL
         AND location_id IS NOT NULL 
         AND name == :name
         ORDER BY date_id ASC, time_id ASC
@@ -358,7 +356,7 @@ def metadata_location_by_name_step1(connection, name, connection2):
     periodDAO = PeriodCachedDAO(connection)
     locationDAO = LocationCachedDAO(connection, connection2)
     logging.info("[{0}] Adding location metadata to {1}".format(__name__, name))
-    for date_id, time_id, tess_id in good_readings_iterable(connection, name):
+    for date_id, time_id, tess_id in unprocessed_iterable(connection, name):
         period = periodDAO.getPeriod(name, date_id)
         location_id = locationDAO.getLocationId(tess_id, date_id, time_id, period)
         row = format_row(name, date_id, time_id, tess_id, location_id)
@@ -383,7 +381,7 @@ def metadata_location_by_name_step2(connection, name, connection2):
     gap_list[name] = collections.deque()
     # First, detect the gaps
     logging.debug("[{0}] Detecting location gaps for {1}.".format(__name__, name))
-    for items in shift_generator(good_readings_iterable2(connection, name), 2):
+    for items in shift_generator(partially_processed_iterable(connection, name), 2):
         if not all(items):
             continue
         old, new = items
