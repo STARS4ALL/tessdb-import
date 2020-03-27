@@ -28,7 +28,7 @@ import collections
 
 import tdbtool.s4a
 from .      import __version__
-from .      import COINCIDENT
+from .      import COINCIDENT, SHIFTED, AMBIGUOUS_TIME
 from .utils import open_database, open_reference_database, mark_bad_rows
 from .utils import candidate_names_iterable, PeriodDAO
 
@@ -121,10 +121,13 @@ def readings_compare_by_name(connection, name, connection2):
             continue
         if len(result) > 1:
             logging.warn("[{0}] Search returned {1} readings.".format(__name__, name, len(result)))
-        if result[0][0] != seq_num:
-            logging.warn("[{0}] Sequence numbers mismatch in {1}. {2} (Ref) = {3}, {4} (CSV) = {5}.".format(__name__, name, result[0][1], result[0][0], tstamp, seq_num))
-        
-        bad_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': COINCIDENT}
+            reason = TIMESTAMP_SHIFTED
+        elif result[0][0] != seq_num:
+            #logging.debug("[{0}] Sequence numbers mismatch in {1}. {2} (Ref) = {3}, {4} (CSV) = {5}.".format(__name__, name, result[0][1], result[0][0], tstamp, seq_num))
+            reason = SHIFTED
+        else:
+            reason = COINCIDENT
+        bad_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': reason}
         dup_sequence_ids.append(bad_row)
         if len(dup_sequence_ids) == ROWS_PER_COMMIT:
             logging.info("[{0}] Marking DUP readings for {1} until {2}".format(__name__, name, date_id))
@@ -138,7 +141,6 @@ def readings_compare_by_name(connection, name, connection2):
     if len(dup_sequence_ids):
         bad_count += len(dup_sequence_ids)
         mark_bad_rows(connection, dup_sequence_ids)
-    
     logging.debug("[{0}] PeriodDAO stats for {1} => {2}".format(__name__, name, periodDAO))
     logging.info("[{0}] Accepted  {1} readings for {2}.".format(__name__, good_count, name))
     logging.info("[{0}] Discarded {1} readings for {2}.".format(__name__, bad_count, name))

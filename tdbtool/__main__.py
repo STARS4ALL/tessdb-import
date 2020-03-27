@@ -243,6 +243,8 @@ def createParser():
     shcex.add_argument('--single',     action="store_true", help='Number of single (per day) readings')
     shcex.add_argument('--pairs',      action="store_true", help='Number of pairs (per day) readings')
     shcex.add_argument('--daylight',   action="store_true", help='Number daylight readings')
+    shcex.add_argument('--shifted',    action="store_true", help='Number timestamp shifted readings')
+    shcex.add_argument('--timestamp',   action="store_true", help='Number of ambiguous timestamp readings')
 
     return parser
 

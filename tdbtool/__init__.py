@@ -32,6 +32,9 @@ DAYLIGHT        = "Daylight"
 BEFORE          = "Before registry"
 AMBIGUOUS_LOC   = "Ambiguous Location Id"
 COINCIDENT      = "Coincident reading in reference database"
+SHIFTED         = "Timestamp shifted, same seq#"
+AMBIGUOUS_TIME  = "Timestamp shifted"
+
 
 # -----------------------
 # Module global variables

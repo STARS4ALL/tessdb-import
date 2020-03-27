@@ -30,7 +30,8 @@ import traceback
 
 import tdbtool.s4a
 from .      import __version__
-from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, DAYLIGHT, AMBIGUOUS_LOC, COINCIDENT, TSTAMP_FORMAT
+from .      import DUP_SEQ_NUMBER, SINGLE, PAIR, DAYLIGHT, AMBIGUOUS_LOC, COINCIDENT, AMBIGUOUS_TIME, SHIFTED
+from .      import TSTAMP_FORMAT
 from .utils import paging, previous_iterable
 
 # ----------------
@@ -172,16 +173,13 @@ def show_count_duplicated(connection, name):
     iterable = show_count_reason(connection, name, DUP_SEQ_NUMBER)
     paging(iterable,["Name", "Count"])
 
-
 def show_count_single(connection, name):
     iterable = show_count_reason(connection, name, SINGLE)
     paging(iterable,["Name", "Count"])
 
-
 def show_count_pairs(connection, name):
     iterable = show_count_reason(connection, name, PAIR)
     paging(iterable,["Name", "Count"])
-
 
 def show_count_daylight(connection, name):
     iterable = show_count_reason(connection, name, DAYLIGHT)
@@ -194,6 +192,15 @@ def show_count_coincident(connection, name):
 def show_count_ambiguous(connection, name):
     iterable = show_count_reason(connection, name, AMBIGUOUS_LOC)
     paging(iterable,["Name", "Count"])
+
+def show_count_shifted(connection, name):
+    iterable = show_count_reason(connection, name, SHIFTED)
+    paging(iterable,["Name", "Count"])
+
+def show_count_timestamp(connection, name):
+    iterable = show_count_reason(connection, name, AMBIGUOUS_TIME)
+    paging(iterable,["Name", "Count"])
+
 
 
 # ==============
@@ -299,8 +306,14 @@ def show_count(connection, options):
         show_count_pairs(connection, options.name)
     elif options.daylight:
         show_count_daylight(connection, options.name)
+    elif options.ambiguous:
+        show_count_ambiguous(connection, options.name)
     elif options.coincident:
         show_count_coincident(connection, options.name)
+    elif options.shifted:
+        show_count_shifted(connection, options.name)
+    elif options.timestamp:
+        show_count_timestamp(connection, options.name)
     else:
         pass
   
