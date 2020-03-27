@@ -103,7 +103,7 @@ def readings_compare_by_name(connection, name, connection2):
         tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
         result = find_sequence_number(connection2, tess_id, tstamp, period, seq_num)
         if  not result:
-            good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'flag': ACCEPTED}
+            good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': ACCEPTED}
             ok_sequence_ids.append(good_row)
             if len(ok_sequence_ids) == OK_ROWS_PER_COMMIT:
                 logging.info("[{0}] Marking OK  readings for {1} until {2}".format(__name__, name, date_id))

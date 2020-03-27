@@ -90,7 +90,7 @@ def mark_daylight(connection, iterable):
 
 
 def daylight_detect_by_name(connection, name):
-    logging.debug("[{0}] detecting daylight readings for {1}".format(__name__, name))
+    logging.info("[{0}] detecting daylight readings for {1}".format(__name__, name))
     count = 0
     rows = []
     iterable1 = candidates_iterable(connection, name)
