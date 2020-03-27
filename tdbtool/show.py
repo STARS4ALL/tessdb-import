@@ -297,7 +297,7 @@ def show_around(connection, options):
 
 def show_count(connection, options):
     if options.total:
-        show_count_candidates(connection, options.name)
+        show_count_total(connection, options.name)
     if options.candidates:
         show_count_candidates(connection, options.name)
     elif options.accepted:

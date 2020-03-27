@@ -37,7 +37,7 @@ from .utils import candidate_names_iterable, PeriodDAO
 # ----------------
 
 ROWS_PER_COMMIT = 10000
-
+OK_ROWS_PER_COMMIT = ROWS_PER_COMMIT // 10
 # -----------------------
 # Module global variables
 # -----------------------
@@ -105,9 +105,9 @@ def readings_compare_by_name(connection, name, connection2):
         if  not result:
             good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'flag': ACCEPTED}
             ok_sequence_ids.append(good_row)
-            if len(ok_sequence_ids) == (ROWS_PER_COMMIT//10):
+            if len(ok_sequence_ids) == OK_ROWS_PER_COMMIT:
                 logging.info("[{0}] Marking OK  readings for {1} until {2}".format(__name__, name, date_id))
-                good_count += (ROWS_PER_COMMIT//10)
+                good_count += OK_ROWS_PER_COMMIT
                 update_rejection_code(connection, ok_sequence_ids)
                 ok_sequence_ids = []
             continue
