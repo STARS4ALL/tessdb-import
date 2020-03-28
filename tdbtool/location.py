@@ -90,7 +90,7 @@ class LocationDAO(object):
         cursor = self.connection2.cursor()
         cursor.execute('''
             SELECT location_id
-            FROM tess_readings_t AS r
+            FROM tess_readings_t
             WHERE tess_id == :tess_id
             AND datetime(iso8601fromids(date_id, time_id)) 
             BETWEEN datetime(:tstamp, :low) 

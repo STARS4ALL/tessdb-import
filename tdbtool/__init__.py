@@ -26,6 +26,8 @@ TSTAMP_FORMAT   = "%Y-%m-%dT%H:%M:%SZ"
 
 # **** rejection codes ****
 
+PROV_ACCEPTED   = -1
+
 # Reading finally accepted and ready to be inserted into the reference database
 ACCEPTED        = 0
 
