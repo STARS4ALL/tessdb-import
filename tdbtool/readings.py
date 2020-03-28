@@ -21,6 +21,7 @@ import sys
 import sqlite3
 import logging
 import collections
+import datetime
 
 # -------------
 # Local imports
@@ -28,7 +29,7 @@ import collections
 
 import tdbtool.s4a
 from .      import __version__
-from .      import ACCEPTED, COINCIDENT, SHIFTED, AMBIGUOUS_TIME, PROV_ACCEPTED
+from .      import ACCEPTED, COINCIDENT, SHIFTED, AMBIGUOUS_TIME
 from .utils import open_database, open_reference_database, update_rejection_code
 from .utils import candidate_names_iterable, PeriodDAO
 
@@ -36,9 +37,8 @@ from .utils import candidate_names_iterable, PeriodDAO
 # Module constants
 # ----------------
 
-ROWS_PER_COMMIT = 50000
-OK_ROWS_PER_COMMIT  = ROWS_PER_COMMIT // 10
-NOK_ROWS_PER_COMMIT = ROWS_PER_COMMIT // 100
+ROWS_PER_COMMIT     = 50000
+OK_ROWS_PER_COMMIT  = ROWS_PER_COMMIT // 10 # Estimation: a 10% of readings will be finally accepted
 
 # -----------------------
 # Module global variables
@@ -100,17 +100,30 @@ def slow_find_sequence_number(connection, tess_id, date_id, tstamp, period, seq_
     return cursor.fetchall()
 
 
-def fast_find_sequence_number(connection, tess_id, date_id, tstamp, period, seq_num):
-    row = {'tess_id': tess_id, 'date_id': date_id, 'tstamp': tstamp, 'seq_num': seq_num}
-    row['high'] = str(period/2)  + ' seconds'
-    row['low']  = str(-period/2) + ' seconds'
+def find_sequence_number(connection, tess_id, cur_date, period, seq_num):
+    prev_date = cur_date - datetime.timedelta(days=1)
+    prev_date = tdbtool.s4a.datetime(prev_date.year, prev_date.month, prev_date.day)
+    next_date = cur_date + datetime.timedelta(days=1)
+    next_date = tdbtool.s4a.datetime(next_date.year, next_date.month, next_date.day)
+    prev_date_id = prev_date.to_dbase_ids()[0]
+    next_date_id = next_date.to_dbase_ids()[0]
+    row = {
+        'tess_id'     : tess_id, 
+        'prev_date_id': prev_date.to_dbase_ids()[0],
+        'next_date_id': next_date.to_dbase_ids()[0],
+        'tstamp'      : cur_date.to_iso8601(), 
+        'seq_num'     : seq_num,
+        'high'        : str(period/2)  + ' seconds',
+        'low'         : str(-period/2) + ' seconds',
+    }
     cursor = connection.cursor()
     cursor.execute('''
         SELECT sequence_number
         FROM tess_readings_t
         WHERE tess_id == :tess_id
-        AND date_id == :date_id
-        AND datetime(iso8601fromids(date_id, time_id)) BETWEEN datetime(:tstamp, :low) AND datetime(:tstamp, :high)
+        AND date_id BETWEEN :prev_date_id AND :next_date_id
+        AND datetime(iso8601fromids(date_id, time_id)) 
+        BETWEEN datetime(:tstamp, :low) AND datetime(:tstamp, :high)
         ''', row)
     return cursor.fetchall()
 
@@ -121,7 +134,7 @@ def log_ambiguous_timestamp(name, seq, tstamp, period, result):
         logging.warn("[{0}] {1} Seq={2}, Ts={3}".format(__name__, name, ref_seq, ref_tstamp))
 
 
-def readings_compare_by_name_step1(connection, name, connection2):
+def readings_compare_by_name(connection, name, connection2):
     dup_sequence_ids = []
     ok_sequence_ids  = []
     bad_count    = 0
@@ -130,13 +143,13 @@ def readings_compare_by_name_step1(connection, name, connection2):
     logging.info("[{0}] Comparing readings in reference database for {1}".format(__name__, name))
     for date_id, time_id, tess_id, seq_num in unprocessed_iterable(connection, name):
         period = periodDAO.getPeriod(name, date_id)
-        tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
-        result = fast_find_sequence_number(connection2, tess_id, date_id, tstamp, period, seq_num)
+        cur_date  = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id)
+        result = find_sequence_number(connection2, tess_id, cur_date, period, seq_num)
         if  not result:
-            good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': PROV_ACCEPTED}
+            good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': ACCEPTED}
             ok_sequence_ids.append(good_row)
             if len(ok_sequence_ids) == OK_ROWS_PER_COMMIT:
-                logging.info("[{0}] Marking PROV_OK readings for {1} until {2}".format(__name__, name, date_id))
+                logging.info("[{0}] Marking OK  readings for {1} until {2}".format(__name__, name, date_id))
                 good_count += OK_ROWS_PER_COMMIT
                 update_rejection_code(connection, ok_sequence_ids)
                 ok_sequence_ids = []
@@ -168,55 +181,6 @@ def readings_compare_by_name_step1(connection, name, connection2):
     logging.info("[{0}] Discarded {1} readings for {2}.".format(__name__, bad_count, name))
     
 
-def readings_compare_by_name_step2(connection, name, connection2):
-    dup_sequence_ids = []
-    ok_sequence_ids  = []
-    bad_count    = 0
-    good_count   = 0
-    periodDAO = PeriodDAO(connection)
-    logging.info("[{0}] Comparing provisonal OK readings with reference database for {1}".format(__name__, name))
-    for date_id, time_id, tess_id, seq_num in provisonal_iterable(connection, name):
-        period = periodDAO.getPeriod(name, date_id)
-        tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
-        result = slow_find_sequence_number(connection2, tess_id, date_id, tstamp, period, seq_num)
-        if  not result:
-            good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': ACCEPTED}
-            ok_sequence_ids.append(good_row)
-            if len(ok_sequence_ids) == OK_ROWS_PER_COMMIT:
-                logging.info("[{0}] Marking OK  readings for {1} until {2}".format(__name__, name, date_id))
-                good_count += OK_ROWS_PER_COMMIT
-                update_rejection_code(connection, ok_sequence_ids)
-                ok_sequence_ids = []
-            continue
-        if len(result) > 1:
-            #log_ambiguous_timestamp(name, seq_num, tstamp, period, result)
-            reason = AMBIGUOUS_TIME
-        elif result[0][0] != seq_num:
-            #logging.debug("[{0}] Sequence numbers mismatch in {1}. {2} (Ref) = {3}, {4} (CSV) = {5}.".format(__name__, name, result[0][1], result[0][0], tstamp, seq_num))
-            reason = SHIFTED
-        else:
-            reason = COINCIDENT
-        bad_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': reason}
-        dup_sequence_ids.append(bad_row)
-        if len(dup_sequence_ids) == NOK_ROWS_PER_COMMIT:
-            logging.info("[{0}] Marking DUP readings for {1} until {2}".format(__name__, name, date_id))
-            logging.debug("[{0}] PeriodDAO stats for {1} => {2}".format(__name__, name, periodDAO))
-            bad_count += NOK_ROWS_PER_COMMIT
-            update_rejection_code(connection, dup_sequence_ids)
-            dup_sequence_ids = []
-    if len(ok_sequence_ids):
-        good_count += len(ok_sequence_ids)
-        update_rejection_code(connection, ok_sequence_ids)
-    if len(dup_sequence_ids):
-        bad_count += len(dup_sequence_ids)
-        update_rejection_code(connection, dup_sequence_ids)
-    logging.debug("[{0}] PeriodDAO stats for {1} => {2}".format(__name__, name, periodDAO))
-    logging.info("[{0}] Accepted  {1} readings for {2}.".format(__name__, good_count, name))
-    logging.info("[{0}] Discarded {1} readings for {2}.".format(__name__, bad_count, name))
-
-def readings_compare_by_name(connection, name, connection2):
-    readings_compare_by_name_step1(connection, name, connection2)
-    readings_compare_by_name_step2(connection, name, connection2)
 
 # ==============
 # MAIN FUNCTIONS
