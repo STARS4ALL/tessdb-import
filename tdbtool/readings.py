@@ -100,7 +100,7 @@ def slow_find_sequence_number(connection, tess_id, date_id, tstamp, period, seq_
     return cursor.fetchall()
 
 
-def find_sequence_number(connection, tess_id, cur_date, period, seq_num):
+def find_sequence_number(connection, tess_id, cur_date, period):
     prev_date = cur_date - datetime.timedelta(days=1)
     prev_date = tdbtool.s4a.datetime(prev_date.year, prev_date.month, prev_date.day)
     next_date = cur_date + datetime.timedelta(days=1)
@@ -112,7 +112,6 @@ def find_sequence_number(connection, tess_id, cur_date, period, seq_num):
         'prev_date_id': prev_date.to_dbase_ids()[0],
         'next_date_id': next_date.to_dbase_ids()[0],
         'tstamp'      : cur_date.to_iso8601(), 
-        'seq_num'     : seq_num,
         'high'        : str(period/2)  + ' seconds',
         'low'         : str(-period/2) + ' seconds',
     }
@@ -144,7 +143,7 @@ def readings_compare_by_name(connection, name, connection2):
     for date_id, time_id, tess_id, seq_num in unprocessed_iterable(connection, name):
         period = periodDAO.getPeriod(name, date_id)
         cur_date  = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id)
-        result = find_sequence_number(connection2, tess_id, cur_date, period, seq_num)
+        result = find_sequence_number(connection2, tess_id, cur_date, period)
         if  not result:
             good_row = {'name': name, 'date_id': date_id, 'time_id': time_id, 'reason': ACCEPTED}
             ok_sequence_ids.append(good_row)

@@ -21,6 +21,7 @@ import sys
 import sqlite3
 import logging
 import collections
+import datetime
 
 # -------------
 # Local imports
@@ -30,7 +31,7 @@ import tdbtool.s4a
 from .      import __version__
 from .      import AMBIGUOUS_LOC
 from .utils import open_database, open_reference_database, update_rejection_code
-from .utils import candidate_names_iterable, shift_generator, PeriodCachedDAO
+from .utils import candidate_names_iterable, shift_generator, PeriodDAO
 
 # ----------------
 # Module constants
@@ -58,89 +59,37 @@ gap_list = {}
 
 class LocationDAO(object):
 
-    def __init__(self, connection, connection2):
+    def __init__(self, connection):
         self.connection   = connection
-        self.connection2  = connection2
-        
 
-    def getLocationId(self, tess_id, date_id, time_id, period):
-        location_id = self.expressFind(tess_id, date_id)
-        if location_id is None :
-            tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
-            location_id = self.slowFind(tess_id, tstamp, period)
-        return location_id
-
-
-    def expressFind(self, tess_id, date_id):
-        row = {'tess_id': tess_id, 'date_id': date_id}
+    def getLocationId(self, tess_id, cur_date, period):
+        prev_date = cur_date - datetime.timedelta(days=1)
+        prev_date = tdbtool.s4a.datetime(prev_date.year, prev_date.month, prev_date.day)
+        next_date = cur_date + datetime.timedelta(days=1)
+        next_date = tdbtool.s4a.datetime(next_date.year, next_date.month, next_date.day)
+        prev_date_id = prev_date.to_dbase_ids()[0]
+        next_date_id = next_date.to_dbase_ids()[0]
+        row = {
+            'tess_id'     : tess_id, 
+            'prev_date_id': prev_date.to_dbase_ids()[0],
+            'next_date_id': next_date.to_dbase_ids()[0],
+            'tstamp'      : cur_date.to_iso8601(), 
+            'high'        : str(period/2)  + ' seconds',
+            'low'         : str(-period/2) + ' seconds',
+        }
         cursor = self.connection.cursor()
-        cursor.execute('''
-            SELECT location_id
-            FROM location_daily_aggregate_t
-            WHERE tess_id == :tess_id
-            AND   date_id == :date_id
-            AND   same_location == 1
-            ''', row)
-        return cursor.fetchone()
-
-    def slowFind(self, tess_id, tstamp, period):
-        row = {'tess_id': tess_id, 'tstamp': tstamp}
-        row['high'] = str(period/2)  + ' seconds'
-        row['low']  = str(-period/2) + ' seconds'
-        cursor = self.connection2.cursor()
         cursor.execute('''
             SELECT location_id
             FROM tess_readings_t
             WHERE tess_id == :tess_id
+            AND date_id BETWEEN :prev_date_id AND :next_date_id
             AND datetime(iso8601fromids(date_id, time_id)) 
-            BETWEEN datetime(:tstamp, :low) 
-            AND datetime(:tstamp, :high)
+            BETWEEN datetime(:tstamp, :low) AND datetime(:tstamp, :high)
             ''', row)
-        return cursor.fetchone()
+        return cursor.fetchall()
 
     def __repr__(self):
         return "H: 0%, M: 100%"
-
-
-
-class LocationCachedDAO(LocationDAO):
-
-    def __init__(self, connection, connection2):
-        super(LocationCachedDAO, self).__init__(connection, connection2)
-        self.cache = {}
-        self.hits = {}
-        self.miss = {}
-        self.expressHits = {}
-        self.expressMiss = {}
-
-
-    def getLocationId(self, tess_id, date_id, time_id, period):
-        key = str(tess_id) + str(date_id)
-        if key in self.cache:
-            self.hits[key] = self.hits.get(key, 0) + 1
-            return self.cache[key]
-        self.miss[key] = self.miss.get(key, 0) + 1
-        location_id = self.expressFind(tess_id, date_id)
-        if location_id:
-            self.expressHits[key] = self.expressHits.get(key, 0) + 1
-            self.cache[key] = location_id
-        else:
-            self.expressMiss[key] = self.expressMiss.get(key, 0) + 1
-            tstamp = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id).to_iso8601()
-            location_id = self.slowFind(tess_id, tstamp, period)
-        return location_id
-
-
-    def __repr__(self):
-        hits = sum(self.hits.values())
-        miss = sum(self.hits.values())
-        dhits = sum(self.expressHits.values())
-        dmiss = sum(self.expressMiss.values())
-        H = 100.0 * hits / float(hits+miss)
-        M = 100 - H
-        DH = 100.0 * dhits / float(dhits+dmiss)
-        DM = 100 - DH
-        return "H: {0}%, M: {1}%, EXH: {2}%, EXM: {3}%".format(H, M, DH, DM)
 
 
 
@@ -330,10 +279,7 @@ def partially_processed_iterable(connection, name):
 
 
 def format_row(name, date_id, time_id, tess_id, location_id):
-    if location_id is None:
-        location_id = TEMP_REJECTED_LOCATION_ID
-    else:
-        location_id = location_id[0]
+    location_id = TEMP_REJECTED_LOCATION_ID if location_id is None else location_id
     return {'name': name, 'date_id': date_id, 'time_id': time_id, 'location_id': location_id}
   
 
@@ -353,13 +299,17 @@ def update_location_id(connection, iterable):
 def metadata_location_by_name_step1(connection, name, connection2):
     location_rows = []
     count    = 0
-    periodDAO = PeriodCachedDAO(connection)
-    locationDAO = LocationCachedDAO(connection, connection2)
+    periodDAO = PeriodDAO(connection)
+    locationDAO = LocationDAO(connection2)
     logging.info("[{0}] Adding location metadata to {1}".format(__name__, name))
     for date_id, time_id, tess_id in unprocessed_iterable(connection, name):
         period = periodDAO.getPeriod(name, date_id)
-        location_id = locationDAO.getLocationId(tess_id, date_id, time_id, period)
-        row = format_row(name, date_id, time_id, tess_id, location_id)
+        cur_date  = tdbtool.s4a.datetime.from_dbase_ids(date_id, time_id)
+        location_id = locationDAO.getLocationId(tess_id, cur_date, period)
+        if not location_id:
+            row = format_row(name, date_id, time_id, tess_id, None)
+        else:
+            row = format_row(name, date_id, time_id, tess_id, location_id[0][0])
         location_rows.append(row)
         if len(location_rows) == ROWS_PER_COMMIT:
             count += ROWS_PER_COMMIT
